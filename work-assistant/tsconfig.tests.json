@@ -16,5 +16,5 @@
       "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["src/main/db/**/*", "src/shared/**/*", "tests/**/*"]
+  "include": ["src/main/db/**/*", "src/shared/**/*", "src/renderer/src/utils/**/*", "tests/**/*"]
 }

@@ -4,6 +4,11 @@ import { writeFileSync } from 'fs'
 import { initDatabase } from './db/database'
 import { registerIpc } from './ipc'
 
+// 验收截图模式可指定独立数据目录(SCREENSHOT_USERDATA),用于演示数据验收,不污染真实用户数据
+if (process.env.SCREENSHOT_USERDATA) {
+  app.setPath('userData', process.env.SCREENSHOT_USERDATA)
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
@@ -23,9 +28,11 @@ function createWindow(): BrowserWindow {
 
   // 验收截图模式:SCREENSHOT_PATH 指定输出路径时,页面加载完成后自动截图并退出,
   // 同时导出 DOM 状态快照(截图旁同名 .dom.json),供验收程序化校验使用
-  // 可选 SCREENSHOT_ROUTE 指定截图的路由(如 #/settings)
+  // 可选 SCREENSHOT_ROUTE 指定截图的路由(如 #/settings);
+  // 可选 SCREENSHOT_SCRIPT 指定截图前在页面执行的脚本(如打开对话框)
   const screenshotPath = process.env.SCREENSHOT_PATH
   const screenshotRoute = process.env.SCREENSHOT_ROUTE
+  const screenshotScript = process.env.SCREENSHOT_SCRIPT
   if (screenshotPath) {
     win.webContents.on('did-finish-load', () => {
       setTimeout(async () => {
@@ -34,6 +41,10 @@ function createWindow(): BrowserWindow {
             await win.webContents.executeJavaScript(
               `location.hash = ${JSON.stringify(screenshotRoute)}`
             )
+            await new Promise((r) => setTimeout(r, 800))
+          }
+          if (screenshotScript) {
+            await win.webContents.executeJavaScript(screenshotScript)
             await new Promise((r) => setTimeout(r, 800))
           }
           const image = await win.webContents.capturePage()
@@ -45,7 +56,7 @@ function createWindow(): BrowserWindow {
             navItems: document.querySelectorAll('.el-menu-item').length,
             activeNav: document.querySelector('.el-menu-item.is-active')?.textContent?.trim() ?? null,
             heading: document.querySelector('.app-header__title')?.textContent?.trim() ?? null,
-            bodyText: document.body.innerText.replace(/\\s+/g, ' ').slice(0, 300)
+            bodyText: document.body.innerText.replace(/\\s+/g, ' ').slice(0, 800)
           })`)
           writeFileSync(screenshotPath.replace(/\.png$/, '.dom.json'), dom)
           console.log('[dom-check] saved')
