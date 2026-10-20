@@ -12,6 +12,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test:db": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs db-tests.js",
     "test:dashboard": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs dashboard-tests.js",
+    "test:calendar": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs calendar-tests.js",
     "demo:seed": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs seed-demo.js",
     "start": "node scripts/run.mjs electron-vite preview"
   },

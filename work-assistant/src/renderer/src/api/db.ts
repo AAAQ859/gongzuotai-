@@ -35,6 +35,7 @@ export interface CreateEventInput {
   end_time?: string | null
   location?: string
   attendees?: { contact_id: number | null; name: string }[]
+  status?: EventStatus
   category?: string
   contact_id?: number | null
 }
@@ -42,12 +43,18 @@ export interface CreateEventInput {
 export const db = {
   calendars: {
     list: (kind?: 'schedule' | 'meeting'): Promise<Calendar[]> =>
-      invoke(DB_ACTIONS.calendarsList, kind ? { kind } : undefined)
+      invoke(DB_ACTIONS.calendarsList, kind ? { kind } : undefined),
+    update: (id: number, patch: Partial<Pick<Calendar, 'name' | 'color' | 'is_visible' | 'sort_order'>>): Promise<Calendar> =>
+      invoke(DB_ACTIONS.calendarsUpdate, { id, ...patch })
   },
   events: {
     list: (filter?: EventFilter): Promise<WorkEvent[]> =>
       invoke(DB_ACTIONS.eventsList, filter ?? {}),
+    get: (id: number): Promise<WorkEvent> => invoke(DB_ACTIONS.eventsGet, { id }),
     create: (input: CreateEventInput): Promise<WorkEvent> => invoke(DB_ACTIONS.eventsCreate, input),
+    update: (id: number, patch: Partial<CreateEventInput>): Promise<WorkEvent> =>
+      invoke(DB_ACTIONS.eventsUpdate, { id, ...patch }),
+    remove: (id: number): Promise<void> => invoke(DB_ACTIONS.eventsRemove, { id }),
     setStatus: (id: number, status: EventStatus): Promise<WorkEvent> =>
       invoke(DB_ACTIONS.eventsSetStatus, { id, status })
   },

@@ -143,6 +143,34 @@ const doneEv = events.create({
 })
 events.setStatus(doneEv.id, 'done')
 
+// 本月其他日期的事件(月/周视图与侧栏计数演示;均在当前周之外,不影响板块 02 汇总口径)
+// endOffset = null 表示无截止时间;默认当日 10:00 结束
+const spread: Array<{ cal: string; kind: 'task' | 'meeting'; title: string; category: string; offset: number; contact?: number; endOffset?: number | null }> = [
+  { cal: '例行工作', kind: 'task', title: '上周复盘', category: '例行', offset: -3, endOffset: null },
+  { cal: '对接事项', kind: 'task', title: '西伯利亚航空对接', category: '对接', offset: 6, contact: zhang.id, endOffset: 8 },
+  { cal: '例行工作', kind: 'task', title: '周报整理', category: '例行', offset: 8 },
+  { cal: '韩亚项目组', kind: 'meeting', title: '韩亚周例会', category: '例会', offset: 9 },
+  { cal: '对接事项', kind: 'task', title: '双流综保区对接', category: '对接', offset: 11, contact: wang.id },
+  { cal: '客运部会议日程', kind: 'meeting', title: '公司安委会议', category: '例会', offset: 13 },
+  { cal: '报告提交', kind: 'task', title: '集团材料汇总', category: '报告', offset: 16 },
+  { cal: '韩亚项目组', kind: 'meeting', title: '东航协调会', category: '协调会', offset: 18 },
+  { cal: '例行工作', kind: 'task', title: '月度例会准备', category: '例会', offset: 20 },
+  { cal: '临时通知', kind: 'task', title: '国防安全培训报名', category: '培训', offset: 23 }
+]
+for (const s of spread) {
+  const d = addDays(today, s.offset)
+  const endD = s.endOffset === null ? null : addDays(today, s.endOffset ?? s.offset)
+  mk({
+    calendar_id: byName(s.cal),
+    kind: s.kind,
+    title: s.title,
+    category: s.category,
+    contact_id: s.contact ?? null,
+    start_time: `${d} 09:00`,
+    end_time: endD ? `${endD} 10:00` : null
+  })
+}
+
 // 汇总输出(供验收比对)
 const summary = computeSummary(events.list(), now)
 const demo = {
