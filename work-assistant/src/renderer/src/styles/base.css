@@ -1,0 +1,47 @@
+/* 工作台助手 — 全局基础样式(品牌色取自 PRD:Product Teal #12B886) */
+:root {
+  --wa-brand: #12b886;
+  --wa-brand-hover: #0ea075;
+  --wa-brand-active: #0b7a5a;
+  --wa-brand-soft: #e6f7f1;
+  --wa-brand-text: #0b7a5a;
+  --wa-ink: #1a2b26;
+  --wa-text: #212529;
+  --wa-text-secondary: #344741;
+  --wa-text-muted: #868e96;
+  --wa-border: #e9ecef;
+  --wa-bg-sidebar: #f8fafa;
+  --wa-danger: #fa5252;
+  --wa-warning: #f59f00;
+  --wa-success: #51cf66;
+
+  /* Element Plus 主色与品牌色对齐 */
+  --el-color-primary: #12b886;
+  --el-color-primary-light-3: #41c69d;
+  --el-color-primary-light-5: #71d6b5;
+  --el-color-primary-light-7: #a0e5cd;
+  --el-color-primary-light-8: #b8edda;
+  --el-color-primary-light-9: #e6f7f1;
+  --el-color-primary-dark-2: #0ea075;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
+    'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: var(--wa-text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
