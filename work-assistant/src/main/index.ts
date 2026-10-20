@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { writeFileSync } from 'fs'
+import { initDatabase } from './db/database'
+import { registerIpc } from './ipc'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -21,11 +23,19 @@ function createWindow(): BrowserWindow {
 
   // 验收截图模式:SCREENSHOT_PATH 指定输出路径时,页面加载完成后自动截图并退出,
   // 同时导出 DOM 状态快照(截图旁同名 .dom.json),供验收程序化校验使用
+  // 可选 SCREENSHOT_ROUTE 指定截图的路由(如 #/settings)
   const screenshotPath = process.env.SCREENSHOT_PATH
+  const screenshotRoute = process.env.SCREENSHOT_ROUTE
   if (screenshotPath) {
     win.webContents.on('did-finish-load', () => {
       setTimeout(async () => {
         try {
+          if (screenshotRoute) {
+            await win.webContents.executeJavaScript(
+              `location.hash = ${JSON.stringify(screenshotRoute)}`
+            )
+            await new Promise((r) => setTimeout(r, 800))
+          }
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
           console.log(`[screenshot] saved to ${screenshotPath}`)
@@ -58,6 +68,10 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  // 初始化本地数据库(userData/db/work-assistant.db)+ 注册 IPC
+  initDatabase(app.getPath('userData'))
+  registerIpc()
+
   ipcMain.handle('app:version', () => app.getVersion())
 
   createWindow()

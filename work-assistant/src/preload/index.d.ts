@@ -1,5 +1,8 @@
+import type { DbApi } from '@shared/types'
+
 export interface Api {
   appVersion: () => Promise<string>
+  db: DbApi
 }
 
 declare global {

@@ -10,6 +10,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test:db": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs",
     "start": "node scripts/run.mjs electron-vite preview"
   },
   "dependencies": {
