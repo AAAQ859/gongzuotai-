@@ -513,6 +513,8 @@ function openDay(dateStr: string): void {
   align-items: flex-start;
   max-width: 1500px;
   margin: 0 auto;
+  /* 三栏最小可用宽度(侧 140 + 主 200 + 详情 215 + 间距):更窄时整体横向滚动,不挤压主区 */
+  min-width: 587px;
 }
 
 /* ---------- 左侧 ---------- */
@@ -616,7 +618,7 @@ function openDay(dateStr: string): void {
 /* ---------- 工具栏 ---------- */
 .mtg-main {
   flex: 1;
-  min-width: 0;
+  min-width: 200px;
 }
 
 .mtg-toolbar {
@@ -960,6 +962,17 @@ function openDay(dateStr: string): void {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* 窄窗口自适应(拖小窗口/整体缩放):压缩侧栏与详情面板,主区保持可用宽度 */
+@media (max-width: 1150px) {
+  .mtg-side {
+    width: 140px;
+  }
+
+  .mtg-panel {
+    width: 215px;
+  }
 }
 
 .mtg-panel__head {

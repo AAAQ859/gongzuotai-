@@ -455,6 +455,8 @@ function contactGroupsLabel(c: Contact): string {
   align-items: flex-start;
   max-width: 1500px;
   margin: 0 auto;
+  /* 三栏最小可用宽度(侧 140 + 主 200 + 详情 215 + 间距):更窄时整体横向滚动,不挤压主区 */
+  min-width: 587px;
 }
 
 /* ---------- 左侧分组 ---------- */
@@ -546,7 +548,7 @@ function contactGroupsLabel(c: Contact): string {
 /* ---------- 中部 ---------- */
 .ct-main {
   flex: 1;
-  min-width: 0;
+  min-width: 200px;
 }
 
 .ct-main__head {
@@ -744,6 +746,17 @@ function contactGroupsLabel(c: Contact): string {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 窄窗口自适应(拖小窗口/整体缩放):压缩侧栏与详情面板,主区保持可用宽度 */
+@media (max-width: 1150px) {
+  .ct-side {
+    width: 140px;
+  }
+
+  .ct-panel {
+    width: 215px;
+  }
 }
 
 .ct-panel__head {

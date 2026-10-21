@@ -17,6 +17,7 @@
     "test:contacts": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs contacts-tests.js",
     "test:reminder": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs reminder-tests.js",
     "test:timeline": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs timeline-tests.js",
+    "test:ui-scale": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs ui-scale-tests.js",
     "demo:seed": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs seed-demo.js",
     "start": "node scripts/run.mjs electron-vite preview"
   },

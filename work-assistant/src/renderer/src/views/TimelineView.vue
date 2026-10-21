@@ -642,6 +642,13 @@ onMounted(load)
   align-self: flex-start;
 }
 
+/* 窄窗口自适应(拖小窗口/整体缩放):详情面板收窄,主时间轴保持可用宽度 */
+@media (max-width: 1150px) {
+  .tl-detail {
+    width: 240px;
+  }
+}
+
 .tl-detail__head {
   display: flex;
   align-items: center;

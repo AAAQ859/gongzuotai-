@@ -4,6 +4,12 @@ import { ElMessage } from 'element-plus'
 import type { DbStatus } from '@shared/types'
 import { DB_ACTIONS } from '@shared/types'
 import { db } from '@/api/db'
+import {
+  UI_SCALE_OPTIONS,
+  applyUiZoom,
+  normalizeUiZoom,
+  uiScalePercent
+} from '@/utils/ui-scale'
 
 const appVersion = ref('')
 const dbStatus = ref<DbStatus | null>(null)
@@ -13,6 +19,9 @@ const dbError = ref('')
 const meetingMins = ref('15')
 const dailyTime = ref('09:00')
 const testing = ref(false)
+
+// 显示设置(字体大小,整体缩放):修改即保存并立即应用
+const activeZoom = ref(1)
 
 onMounted(async () => {
   try {
@@ -29,10 +38,22 @@ onMounted(async () => {
   try {
     meetingMins.value = await db.settings.get('meeting_reminder_minutes', '15')
     dailyTime.value = await db.settings.get('daily_push_time', '09:00')
+    activeZoom.value = normalizeUiZoom(await db.settings.get('ui_zoom', '1'))
   } catch {
     // 设置读取失败时保留默认值
   }
 })
+
+async function saveUiZoom(zoom: number): Promise<void> {
+  try {
+    await db.settings.set('ui_zoom', String(zoom))
+    activeZoom.value = zoom
+    applyUiZoom(zoom)
+    ElMessage.success(`字体大小已设为「${UI_SCALE_OPTIONS.find((o) => o.zoom === zoom)?.label ?? zoom}」`)
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
+}
 
 async function saveMeetingMins(): Promise<void> {
   try {
@@ -141,6 +162,28 @@ async function testNotification(): Promise<void> {
     </el-card>
 
     <el-card shadow="never" class="settings-card">
+      <template #header>显示设置</template>
+      <div class="settings-row">
+        <span class="settings-label">字体大小</span>
+        <div class="ui-scale-options" role="radiogroup" aria-label="字体大小">
+          <button
+            v-for="o in UI_SCALE_OPTIONS"
+            :key="o.key"
+            class="ui-scale-opt"
+            :class="{ 'is-active': activeZoom === o.zoom }"
+            :title="`${o.label} (${uiScalePercent(o.zoom)}%)`"
+            @click="saveUiZoom(o.zoom)"
+          >
+            {{ o.label }} <span class="ui-scale-opt__pct">{{ uiScalePercent(o.zoom) }}%</span>
+          </button>
+        </div>
+      </div>
+      <div class="settings-hint">
+        字体与界面按比例同步缩放(整体缩放),点击后立即生效并自动保存,重启应用保持。窗口过小时各板块会自动重排,不会重叠。
+      </div>
+    </el-card>
+
+    <el-card shadow="never" class="settings-card">
       <template #header>关于</template>
       <div class="settings-row">
         <span class="settings-label">应用名称</span>
@@ -199,5 +242,45 @@ async function testNotification(): Promise<void> {
   font-size: 12px;
   color: var(--wa-text-muted);
   padding-top: 4px;
+}
+
+.ui-scale-options {
+  display: flex;
+  gap: 6px;
+}
+
+.ui-scale-opt {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--wa-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--wa-text);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ui-scale-opt:hover {
+  background: var(--wa-brand-soft);
+  border-color: var(--wa-brand-text);
+}
+
+.ui-scale-opt.is-active {
+  background: var(--wa-brand-soft);
+  border-color: var(--wa-brand-text);
+  color: var(--wa-brand-text);
+  font-weight: 600;
+}
+
+.ui-scale-opt__pct {
+  font-size: 11px;
+  color: var(--wa-text-muted);
+}
+
+.ui-scale-opt.is-active .ui-scale-opt__pct {
+  color: var(--wa-brand-text);
 }
 </style>

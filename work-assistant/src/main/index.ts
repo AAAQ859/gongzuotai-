@@ -27,6 +27,17 @@ function createWindow(): BrowserWindow {
 
   win.on('ready-to-show', () => win.show())
 
+  // 缩放唯一入口是设置页「字体大小」(CSS zoom):禁用 Ctrl+滚轮/Ctrl+加减号页面缩放,
+  // 避免页面被放大后视口变小、固定宽度面板互相挤压
+  win.webContents.setVisualZoomLevelLimits(1, 1)
+
+  // 验收截图模式可指定窗口尺寸(SCREENSHOT_WINDOW="1024x700"),用于小窗口自适应验收
+  const screenshotWindow = process.env.SCREENSHOT_WINDOW
+  if (screenshotWindow) {
+    const [w, h] = screenshotWindow.split('x').map(Number)
+    if (w > 0 && h > 0) win.setSize(w, h)
+  }
+
   // 验收截图模式:SCREENSHOT_PATH 指定输出路径时,页面加载完成后自动截图并退出,
   // 同时导出 DOM 状态快照(截图旁同名 .dom.json),供验收程序化校验使用
   // 可选 SCREENSHOT_ROUTE 指定截图的路由(如 #/settings);

@@ -2,12 +2,19 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import router from './router'
+import { db } from '@/api/db'
+import { applyUiZoom, normalizeUiZoom } from '@/utils/ui-scale'
 
 // 系统通知点击 → 主进程导航指令(提醒引擎发送 '#/meetings' 等路由)
 onMounted(() => {
   window.api.onNavigate((route) => {
     router.push(route)
   })
+  // 设置页「字体大小」(整体缩放):启动即应用上次保存的档位,未设置时标准 100%
+  db.settings
+    .get('ui_zoom', '1')
+    .then((v) => applyUiZoom(normalizeUiZoom(v)))
+    .catch(() => applyUiZoom(1))
 })
 
 const route = useRoute()
@@ -207,6 +214,8 @@ const todayText = computed(() => {
 
 .app-main {
   background: #fff;
+  /* 兜底:页面最小宽度超过可用宽度时横向滚动,板块永不互相挤压(窄窗口/整体缩放) */
+  overflow-x: auto;
 }
 
 .app-header {

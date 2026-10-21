@@ -398,6 +398,13 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
   gap: 16px;
 }
 
+/* 窄窗口自适应(拖小窗口/整体缩放):侧栏收窄(置于主规则之后,媒体匹配时覆盖) */
+@media (max-width: 1150px) {
+  .cal-side {
+    width: 160px;
+  }
+}
+
 .cal-side__group-title {
   font-size: 12px;
   color: var(--wa-text-muted);
