@@ -176,3 +176,38 @@ export function groupCalendars(calendars: Calendar[]): CalendarGroup[] {
 
 /** 相邻两天的天数差(用于测试断言) */
 export { dayDiff }
+
+// ============ 状态自动识别 ============
+// 规则(用户确认):手动状态优先(done/cancelled/in_progress);未手动标记的按开始/结束时间自动推导:
+//   未到开始时间 → 未开始;开始后未到结束 → 进行中;到结束时间后 → 已结束
+
+export interface EventStateInfo {
+  key: 'not_started' | 'in_progress' | 'ended' | 'done' | 'cancelled'
+  label: string
+}
+
+export function eventState(ev: WorkEvent, now: Date = new Date()): EventStateInfo {
+  if (ev.status === 'done') return { key: 'done', label: '已完成' }
+  if (ev.status === 'cancelled') return { key: 'cancelled', label: '已取消' }
+  if (ev.status === 'in_progress') return { key: 'in_progress', label: '进行中' }
+  const nowDt = `${fmtDate(now)} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+  if (ev.end_time && nowDt >= ev.end_time) return { key: 'ended', label: '已结束' }
+  if (ev.start_time && nowDt < ev.start_time) return { key: 'not_started', label: '未开始' }
+  if (ev.start_time || ev.end_time) return { key: 'in_progress', label: '进行中' }
+  return { key: 'not_started', label: '未开始' } // 无任何时间 → 待安排
+}
+
+// ============ 侧栏筛选 ============
+/** 应用侧栏显隐与「只看该日历」筛选:
+ *  activeCalId 非空时仅保留该日历的事项(未分类事项不显示);hiddenIds 中的日历被勾选隐藏 */
+export function applyCalendarFilter(
+  events: WorkEvent[],
+  activeCalId: number | null,
+  hiddenIds: Set<number>
+): WorkEvent[] {
+  return events.filter((e) => {
+    if (activeCalId != null && e.calendar_id !== activeCalId) return false
+    if (e.calendar_id != null && hiddenIds.has(e.calendar_id)) return false
+    return true
+  })
+}

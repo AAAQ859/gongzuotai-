@@ -1,9 +1,12 @@
 /**
  * 验收演示数据播种:向指定数据目录写入与 PRD 仪表盘原型一致的演示数据,
  * 并输出 DEMO_SUMMARY(JSON)供截图验收比对。
+ * 日历分类不再内置预设 —— 由本脚本按演示需要自行创建(与产品行为一致:用户自建)。
+ * 幂等:播种前删除旧数据库文件,整体重建。
  * 用法:npm run demo:seed -- <数据目录>
  */
-import { closeDatabase, initDatabaseAt } from '../src/main/db/database'
+import { existsSync, rmSync } from 'fs'
+import { closeDatabase, dbFilePath, initDatabaseAt } from '../src/main/db/database'
 import * as calendars from '../src/main/db/repositories/calendars'
 import * as contacts from '../src/main/db/repositories/contacts'
 import * as events from '../src/main/db/repositories/events'
@@ -15,13 +18,24 @@ if (!dir) {
   process.exit(1)
 }
 
+if (existsSync(dbFilePath(dir))) rmSync(dbFilePath(dir))
+
 initDatabaseAt(dir)
 
 const now = new Date()
 const today = fmtDate(now)
 const weekStart = fmtDate(startOfWeek(now))
 
-const cals = calendars.list()
+// 日历分类:演示数据自行创建(产品不内置预设)
+const calDefs = [
+  { name: '例行工作', color: '#12B886', kind: 'schedule' as const },
+  { name: '对接事项', color: '#339AF0', kind: 'schedule' as const },
+  { name: '报告提交', color: '#FF922B', kind: 'schedule' as const },
+  { name: '临时通知', color: '#9775FA', kind: 'schedule' as const },
+  { name: '客运部会议日程', color: '#F06595', kind: 'meeting' as const },
+  { name: '韩亚项目组', color: '#51CF66', kind: 'meeting' as const }
+]
+const cals = calDefs.map((d) => calendars.create(d))
 const byName = (name: string): number => {
   const c = cals.find((x) => x.name === name)
   if (!c) throw new Error(`缺少日历分类: ${name}`)

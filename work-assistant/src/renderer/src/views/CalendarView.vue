@@ -7,10 +7,12 @@ import { db } from '@/api/db'
 import { categoryColor, fmtDate } from '@/utils/dashboard'
 import {
   WEEKDAY_HEADER,
+  applyCalendarFilter,
   buildMonthGridSunday,
   buildWeekDays,
   countEventsByCalendar,
   countFollowupsDue,
+  eventState,
   fmtTimeRange,
   groupCalendars,
   groupEventsByDay,
@@ -22,6 +24,7 @@ import {
 } from '@/utils/calendar'
 import EventDetailDialog from '@/components/EventDetailDialog.vue'
 import EventEditorDialog from '@/components/EventEditorDialog.vue'
+import CalendarManageDialog from '@/components/CalendarManageDialog.vue'
 
 // ---------- 数据 ----------
 const events = ref<WorkEvent[]>([])
@@ -52,10 +55,25 @@ const range = computed(() => viewRange(view.value, anchor.value))
 const calendarGroups = computed(() => groupCalendars(calendars.value))
 const followupCount = computed(() => countFollowupsDue(events.value))
 
-const visibleCalIds = computed(() => new Set(calendars.value.filter((c) => c.is_visible === 1).map((c) => c.id)))
-const visibleEvents = computed(() =>
-  events.value.filter((e) => e.calendar_id == null || visibleCalIds.value.has(e.calendar_id))
+/** 侧栏「只看该日历」筛选:点击行切换,再点取消;与勾选显隐叠加 */
+const activeCalId = ref<number | null>(null)
+const hiddenCalIds = computed(
+  () => new Set(calendars.value.filter((c) => c.is_visible !== 1).map((c) => c.id))
 )
+const visibleEvents = computed(() =>
+  applyCalendarFilter(events.value, activeCalId.value, hiddenCalIds.value)
+)
+
+function toggleActive(cal: Calendar): void {
+  activeCalId.value = activeCalId.value === cal.id ? null : cal.id
+}
+
+// ---------- 日历管理 ----------
+const manageVisible = ref(false)
+
+function onManageChanged(): void {
+  load()
+}
 
 const categories = computed(() => {
   const set = new Set<string>()
@@ -169,18 +187,30 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
           v-for="cal in group.items"
           :key="cal.id"
           class="cal-side__item"
-          :class="{ 'is-hidden': cal.is_visible !== 1 }"
+          :class="{
+            'is-hidden': cal.is_visible !== 1,
+            'is-active': activeCalId === cal.id
+          }"
         >
           <input
             type="checkbox"
             :checked="cal.is_visible === 1"
+            @click.stop
             @change="toggleVisibility(cal)"
           />
-          <span class="cal-side__dot" :style="{ background: cal.color }"></span>
-          <span class="cal-side__name">{{ cal.name }}</span>
-          <span class="cal-side__count">{{ countOf(cal.id) }}</span>
+          <span
+            class="cal-side__body"
+            :title="activeCalId === cal.id ? '点击取消只看该类' : '点击只看该类事项'"
+            @click="toggleActive(cal)"
+          >
+            <span class="cal-side__dot" :style="{ background: cal.color }"></span>
+            <span class="cal-side__name">{{ cal.name }}</span>
+            <span class="cal-side__count">{{ countOf(cal.id) }}</span>
+          </span>
         </label>
       </div>
+
+      <button class="cal-side__manage" @click="manageVisible = true">⚙ 管理日历</button>
 
       <div v-if="followupCount > 0" class="cal-tip">
         💡 本周有 {{ followupCount }} 项对接事项临近截止,请及时跟进。
@@ -207,6 +237,11 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
         />
       </div>
 
+      <!-- 无日历引导 -->
+      <div v-if="!calendars.length" class="cal-empty-hint">
+        🗓 还没有日历分类,点击左侧「⚙ 管理日历」创建第一个日历(如:例行工作、会议日程)。
+      </div>
+
       <!-- 月视图 -->
       <div v-if="view === 'month'" class="cal-month">
         <div class="cal-month__head">
@@ -229,7 +264,7 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
                 v-for="ev in (monthLayouts.get(cell.dateStr) ?? { visible: [], more: 0 }).visible"
                 :key="ev.id"
                 class="cal-month__block"
-                :class="{ 'is-done': ev.status === 'done', 'is-cancelled': ev.status === 'cancelled' }"
+                :class="`is-${eventState(ev).key.replace('_', '-')}`"
                 :style="{
                   background: calendars.find((c) => c.id === ev.calendar_id)?.color ?? '#CED4DA'
                 }"
@@ -269,7 +304,7 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
               v-for="ev in weekEventsByDay.get(fmtDate(d)) ?? []"
               :key="ev.id"
               class="cal-week__item"
-              :class="{ 'is-done': ev.status === 'done', 'is-cancelled': ev.status === 'cancelled' }"
+              :class="`is-${eventState(ev).key.replace('_', '-')}`"
               @click="openDetail(ev)"
             >
               <span class="cal-week__time">{{ fmtTimeRange(ev) }}</span>
@@ -291,7 +326,7 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
             <span class="cal-day__bar" :style="{ background: calendars.find((c) => c.id === ev.calendar_id)?.color ?? '#CED4DA' }"></span>
             <span class="cal-day__time">{{ fmtTimeRange(ev) }}</span>
             <span class="cal-day__main">
-              <span class="cal-day__title" :class="{ 'is-done': ev.status === 'done', 'is-cancelled': ev.status === 'cancelled' }">
+              <span class="cal-day__title" :class="`is-${eventState(ev).key.replace('_', '-')}`">
                 {{ ev.title }}
               </span>
               <span class="cal-day__sub">
@@ -303,7 +338,12 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
                 </template>
               </span>
             </span>
-            <span class="cal-day__kind">{{ ev.kind === 'meeting' ? '会议' : '事项' }}</span>
+            <span class="cal-day__meta">
+              <span class="cal-day__state" :class="`is-${eventState(ev).key.replace('_', '-')}`">
+                {{ eventState(ev).label }}
+              </span>
+              <span class="cal-day__kind">{{ ev.kind === 'meeting' ? '会议' : '事项' }}</span>
+            </span>
           </button>
         </div>
         <div v-else class="cal-day__empty">🎉 当天没有安排</div>
@@ -328,6 +368,12 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
       :categories="categories"
       @saved="onSaved"
       @deleted="onDeleted"
+    />
+    <CalendarManageDialog
+      v-model="manageVisible"
+      :calendars="calendars"
+      :events="events"
+      @changed="onManageChanged"
     />
   </div>
 </template>
@@ -379,8 +425,41 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
   opacity: 0.35;
 }
 
+.cal-side__item.is-active {
+  background: var(--wa-brand-soft);
+}
+
+.cal-side__item.is-active .cal-side__name {
+  color: var(--wa-brand-text);
+  font-weight: 600;
+}
+
 .cal-side__item input {
   accent-color: var(--wa-brand);
+  flex-shrink: 0;
+}
+
+.cal-side__body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cal-side__manage {
+  border: 1px dashed var(--wa-border);
+  background: transparent;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--wa-text-muted);
+  cursor: pointer;
+}
+
+.cal-side__manage:hover {
+  border-color: var(--wa-brand);
+  color: var(--wa-brand);
 }
 
 .cal-side__dot {
@@ -552,6 +631,15 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
   text-decoration: line-through;
 }
 
+.cal-month__block.is-not-started {
+  opacity: 0.6;
+  border: 1px dashed rgba(255, 255, 255, 0.8);
+}
+
+.cal-month__block.is-ended {
+  opacity: 0.45;
+}
+
 .cal-month__more {
   border: none;
   background: transparent;
@@ -652,6 +740,15 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
   text-decoration: line-through;
 }
 
+.cal-week__item.is-not-started {
+  border-left-style: dashed;
+  opacity: 0.7;
+}
+
+.cal-week__item.is-ended {
+  opacity: 0.5;
+}
+
 .cal-week__time {
   font-size: 10px;
   color: var(--wa-text-muted);
@@ -746,6 +843,53 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
   color: #adb5bd;
 }
 
+.cal-day__title.is-not-started {
+  color: #868e96;
+}
+
+.cal-day__title.is-ended {
+  color: var(--wa-text-muted);
+}
+
+.cal-day__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cal-day__state {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.cal-day__state.is-not-started {
+  color: #868e96;
+  background: #f1f3f5;
+}
+
+.cal-day__state.is-in-progress {
+  color: #12b886;
+  background: #e6f7f1;
+}
+
+.cal-day__state.is-ended {
+  color: #868e96;
+  background: #f1f3f5;
+}
+
+.cal-day__state.is-done {
+  color: #2f9e44;
+  background: #ebfbee;
+}
+
+.cal-day__state.is-cancelled {
+  color: #868e96;
+  background: #f1f3f5;
+  text-decoration: line-through;
+}
+
 .cal-day__sub {
   display: flex;
   align-items: center;
@@ -774,5 +918,12 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
   padding: 60px 0;
   text-align: center;
   color: var(--wa-text-muted);
+}
+
+.cal-empty-hint {
+  padding: 80px 0;
+  text-align: center;
+  color: var(--wa-text-muted);
+  font-size: 14px;
 }
 </style>

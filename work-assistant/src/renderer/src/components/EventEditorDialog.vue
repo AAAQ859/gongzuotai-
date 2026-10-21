@@ -31,15 +31,16 @@ const saving = ref(false)
 const form = reactive({
   kind: 'task' as EventKind,
   title: '',
-  calendar_id: null as number | null,
+  calendar_id: null as number | string | null,
   category: '',
   start_time: '',
   end_time: '',
   location: '',
   attendees: [] as { contact_id: number | null; name: string }[],
-  contact_id: null as number | null,
+  contact_id: null as number | string | null,
   status: 'todo' as WorkEvent['status'],
-  description: ''
+  description: '',
+  reminder: 30 // 0=不提醒;15/30/60/1440=提前分钟数
 })
 
 const calendarOptions = computed(() =>
@@ -47,6 +48,13 @@ const calendarOptions = computed(() =>
     .filter((c) => (form.kind === 'meeting' ? c.kind === 'meeting' : c.kind === 'schedule'))
     .map((c) => ({ value: c.id, label: c.name }))
 )
+
+/** 新日历/联系人轮转取色 */
+const NEW_COLOR_PALETTE = ['#12B886', '#339AF0', '#FF922B', '#9775FA', '#F06595', '#51CF66', '#F59F00', '#22B8CF']
+function nextColor(kind: 'schedule' | 'meeting'): string {
+  const same = props.calendars.filter((c) => c.kind === kind)
+  return NEW_COLOR_PALETTE[same.length % NEW_COLOR_PALETTE.length]
+}
 
 function initForm(): void {
   const ev = props.event
@@ -62,6 +70,8 @@ function initForm(): void {
     form.contact_id = ev.contact_id
     form.status = ev.status
     form.description = ev.description
+    const mins = ev.reminder_minutes ?? (ev.reminder_days ? ev.reminder_days * 1440 : null)
+    form.reminder = ev.reminder_enabled && mins ? mins : 0
     return
   }
   const base = props.defaultDate ? `${props.defaultDate} 09:00` : null
@@ -80,6 +90,7 @@ function initForm(): void {
   form.contact_id = null
   form.status = 'todo'
   form.description = ''
+  form.reminder = 30 // 默认:结束前 30 分钟提醒(用户确认)
 }
 
 watch(
@@ -112,18 +123,45 @@ async function submit(): Promise<void> {
   }
   saving.value = true
   try {
+    // 日历 / 对接人:下拉允许直接输入新名称,字符串值即时创建后取 id
+    let calendarId = form.calendar_id
+    if (typeof calendarId === 'string') {
+      const name = calendarId.trim()
+      if (!name) {
+        ElMessage.warning('请输入日历名称')
+        return
+      }
+      const cal = await db.calendars.create({
+        name,
+        kind: form.kind === 'meeting' ? 'meeting' : 'schedule',
+        color: nextColor(form.kind === 'meeting' ? 'meeting' : 'schedule')
+      })
+      calendarId = cal.id
+    }
+    let contactId = form.contact_id
+    if (typeof contactId === 'string') {
+      const name = contactId.trim()
+      if (!name) {
+        ElMessage.warning('请输入对接人姓名')
+        return
+      }
+      const c = await db.contacts.create({ name })
+      contactId = c.id
+    }
     const payload = {
       kind: form.kind,
       title: form.title.trim(),
-      calendar_id: form.calendar_id,
+      calendar_id: calendarId as number | null,
       category: form.category.trim() || undefined,
       start_time: form.start_time || null,
       end_time: form.end_time || null,
       location: form.location.trim() || undefined,
       attendees: form.kind === 'meeting' ? form.attendees : [],
-      contact_id: form.kind === 'task' ? form.contact_id : null,
+      contact_id: form.kind === 'task' ? (contactId as number | null) : null,
       status: form.kind === 'task' ? form.status : undefined,
-      description: form.description.trim() || undefined
+      description: form.description.trim() || undefined,
+      reminder_enabled: form.end_time && form.reminder > 0 ? 1 : 0,
+      reminder_minutes: form.end_time && form.reminder > 0 ? form.reminder : null
     }
     if (props.event) {
       await db.events.update(props.event.id, payload)
@@ -179,7 +217,14 @@ async function remove(): Promise<void> {
         <el-input v-model="form.title" placeholder="要做什么?" maxlength="100" />
       </el-form-item>
       <el-form-item :label="form.kind === 'meeting' ? '会议日历' : '所属日历'">
-        <el-select v-model="form.calendar_id" placeholder="选择日历分类" style="width: 100%">
+        <el-select
+          v-model="form.calendar_id"
+          filterable
+          allow-create
+          default-first-option
+          placeholder="选择日历,或输入新名称回车新建"
+          style="width: 100%"
+        >
           <el-option v-for="c in calendarOptions" :key="c.value" :label="c.label" :value="c.value" />
         </el-select>
       </el-form-item>
@@ -230,24 +275,41 @@ async function remove(): Promise<void> {
           <el-option
             v-for="c in contacts"
             :key="c.id"
-            :label="`${c.name} · ${c.department}`"
+            :label="c.department ? `${c.name} · ${c.department}` : c.name"
             :value="c.id"
           />
         </el-select>
       </el-form-item>
       <el-form-item v-if="form.kind === 'task'" label="对接人">
-        <el-select v-model="form.contact_id" clearable placeholder="选择联系人(可选)" style="width: 100%">
+        <el-select
+          v-model="form.contact_id"
+          filterable
+          allow-create
+          default-first-option
+          clearable
+          placeholder="选择联系人,或输入新姓名回车创建"
+          style="width: 100%"
+        >
           <el-option
             v-for="c in contacts"
             :key="c.id"
-            :label="`${c.name} · ${c.department}`"
+            :label="c.department ? `${c.name} · ${c.department}` : c.name"
             :value="c.id"
           />
         </el-select>
       </el-form-item>
+      <el-form-item v-if="form.kind === 'task' && form.end_time" label="结束前提醒">
+        <el-select v-model="form.reminder" style="width: 100%">
+          <el-option label="不提醒" :value="0" />
+          <el-option label="提前 15 分钟" :value="15" />
+          <el-option label="提前 30 分钟" :value="30" />
+          <el-option label="提前 1 小时" :value="60" />
+          <el-option label="提前 1 天" :value="1440" />
+        </el-select>
+      </el-form-item>
       <el-form-item v-if="form.kind === 'task'" label="状态">
         <el-select v-model="form.status" style="width: 100%">
-          <el-option label="待办" value="todo" />
+          <el-option label="待办(按时间自动识别)" value="todo" />
           <el-option label="进行中" value="in_progress" />
           <el-option label="已完成" value="done" />
           <el-option label="已取消" value="cancelled" />

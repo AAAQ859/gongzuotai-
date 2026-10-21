@@ -5,10 +5,12 @@
 import type { Calendar, WorkEvent } from '@shared/types'
 import {
   WEEKDAY_HEADER,
+  applyCalendarFilter,
   buildMonthGridSunday,
   buildWeekDays,
   countEventsByCalendar,
   countFollowupsDue,
+  eventState,
   fmtTimeRange,
   groupCalendars,
   groupEventsByDay,
@@ -150,6 +152,87 @@ const calList: Calendar[] = [
 const groups = groupCalendars(calList)
 check('我的日历 = schedule', groups[0].label === '我的日历' && groups[0].items.length === 2)
 check('部门日历 = meeting', groups[1].label === '部门日历' && groups[1].items.length === 2)
+
+console.log('【6】状态自动识别(手动优先,时间兜底)')
+// NOW = 2026-10-21 10:00
+const sNow = new Date(2026, 9, 21, 10, 0)
+const sDone = mk({ status: 'done', start_time: '2026-10-21 09:00', end_time: '2026-10-21 11:00' })
+const sCancel = mk({ status: 'cancelled', start_time: '2026-10-21 09:00', end_time: '2026-10-21 11:00' })
+const sManual = mk({ status: 'in_progress', start_time: '2026-10-20 09:00', end_time: '2026-10-25 09:00' })
+check('手动已完成优先', eventState(sDone, sNow).key === 'done' && eventState(sDone, sNow).label === '已完成')
+check('手动已取消优先', eventState(sCancel, sNow).key === 'cancelled')
+check('手动进行中优先', eventState(sManual, sNow).key === 'in_progress')
+check(
+  '未到开始时间 → 未开始',
+  eventState(mk({ start_time: '2026-10-21 11:00', end_time: '2026-10-21 12:00' }), sNow).key === 'not_started'
+)
+check(
+  '开始后未结束 → 进行中',
+  eventState(mk({ start_time: '2026-10-21 09:00', end_time: '2026-10-21 11:00' }), sNow).key === 'in_progress'
+)
+check(
+  '到结束时间 → 已结束',
+  eventState(mk({ start_time: '2026-10-21 09:00', end_time: '2026-10-21 10:00' }), sNow).key === 'ended'
+)
+check(
+  '开始时间即等于当前 → 进行中',
+  eventState(mk({ start_time: '2026-10-21 10:00', end_time: '2026-10-21 12:00' }), sNow).key === 'in_progress'
+)
+check(
+  '已逾期的今日事项 → 已结束',
+  eventState(mk({ start_time: '2026-10-20 09:00', end_time: '2026-10-20 18:00' }), sNow).key === 'ended'
+)
+check(
+  '仅开始时间已过 → 进行中',
+  eventState(mk({ start_time: '2026-10-21 08:00' }), sNow).key === 'in_progress'
+)
+check(
+  '仅开始时间未到 → 未开始',
+  eventState(mk({ start_time: '2026-10-22 09:00' }), sNow).key === 'not_started'
+)
+check(
+  '仅结束时间已过 → 已结束',
+  eventState(mk({ end_time: '2026-10-20 18:00' }), sNow).key === 'ended'
+)
+check(
+  '无任何时间 → 未开始(待安排)',
+  eventState(mk({}), sNow).key === 'not_started'
+)
+check(
+  '进行中事项提前手动完成 → 已完成',
+  eventState(
+    mk({ status: 'done', start_time: '2026-10-21 09:00', end_time: '2026-10-21 11:00' }),
+    sNow
+  ).key === 'done'
+)
+
+console.log('【7】侧栏筛选(只看该日历 × 勾选显隐)')
+const fA = mk({ calendar_id: 1, start_time: '2026-10-21 09:00' })
+const fB = mk({ calendar_id: 2, start_time: '2026-10-21 10:00' })
+const fC = mk({ calendar_id: 1, start_time: '2026-10-21 11:00' })
+const fNone = mk({ calendar_id: null, start_time: '2026-10-21 12:00' })
+const all = [fA, fB, fC, fNone]
+check(
+  '只看日历1 → 仅该日历事项',
+  applyCalendarFilter(all, 1, new Set()).map((e) => e.id).join() === `${fA.id},${fC.id}`
+)
+check(
+  '无筛选时未分类事项可见',
+  applyCalendarFilter(all, null, new Set()).some((e) => e.id === fNone.id)
+)
+check(
+  '筛选日历1时未分类不可见',
+  !applyCalendarFilter(all, 1, new Set()).some((e) => e.id === fNone.id)
+)
+check(
+  '勾选隐藏叠加:隐藏日历2',
+  applyCalendarFilter(all, null, new Set([2])).length === 3 &&
+    !applyCalendarFilter(all, null, new Set([2])).some((e) => e.id === fB.id)
+)
+check(
+  '筛选 + 隐藏同时生效',
+  applyCalendarFilter(all, 1, new Set([1])).length === 0
+)
 
 console.log(`\n结果: ${passed} 项通过, ${failed} 项失败`)
 if (failed > 0) {

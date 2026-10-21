@@ -38,14 +38,19 @@ export interface CreateEventInput {
   status?: EventStatus
   category?: string
   contact_id?: number | null
+  reminder_enabled?: number
+  reminder_minutes?: number | null
 }
 
 export const db = {
   calendars: {
     list: (kind?: 'schedule' | 'meeting'): Promise<Calendar[]> =>
       invoke(DB_ACTIONS.calendarsList, kind ? { kind } : undefined),
+    create: (input: { name: string; color?: string; kind?: 'schedule' | 'meeting' }): Promise<Calendar> =>
+      invoke(DB_ACTIONS.calendarsCreate, input),
     update: (id: number, patch: Partial<Pick<Calendar, 'name' | 'color' | 'is_visible' | 'sort_order'>>): Promise<Calendar> =>
-      invoke(DB_ACTIONS.calendarsUpdate, { id, ...patch })
+      invoke(DB_ACTIONS.calendarsUpdate, { id, ...patch }),
+    remove: (id: number): Promise<void> => invoke(DB_ACTIONS.calendarsRemove, { id })
   },
   events: {
     list: (filter?: EventFilter): Promise<WorkEvent[]> =>
@@ -59,6 +64,8 @@ export const db = {
       invoke(DB_ACTIONS.eventsSetStatus, { id, status })
   },
   contacts: {
-    list: (): Promise<Contact[]> => invoke(DB_ACTIONS.contactsList)
+    list: (): Promise<Contact[]> => invoke(DB_ACTIONS.contactsList),
+    create: (input: { name: string; department?: string; avatar_color?: string }): Promise<Contact> =>
+      invoke(DB_ACTIONS.contactsCreate, input)
   }
 }

@@ -145,15 +145,8 @@ CREATE TABLE settings (
   value TEXT NOT NULL
 );
 
--- ============ 默认数据(与 PRD 原型一致) ============
-INSERT INTO calendars (name, color, kind, sort_order) VALUES
-  ('例行工作', '#12B886', 'schedule', 1),
-  ('对接事项', '#339AF0', 'schedule', 2),
-  ('报告提交', '#FF922B', 'schedule', 3),
-  ('临时通知', '#9775FA', 'schedule', 4),
-  ('客运部会议日程', '#F06595', 'meeting', 5),
-  ('韩亚项目组', '#51CF66', 'meeting', 6);
-
+-- ============ 默认设置 ============
+-- 注意:日历分类不再内置预设,由用户在日历页「管理日历」中自行创建(见 v3 迁移)
 INSERT INTO settings (key, value) VALUES
   ('meeting_reminder_minutes', '15'),
   ('daily_push_time', '09:00'),
@@ -172,6 +165,17 @@ DROP TRIGGER IF EXISTS events_ad;
 DROP TRIGGER IF EXISTS events_au;
 DROP TABLE IF EXISTS events_fts;
 CREATE VIRTUAL TABLE events_fts USING fts5(title, description);
+`
+  },
+  {
+    version: 3,
+    name: 'no-preset-calendars',
+    // 日历分类由用户自行创建(日历页「管理日历」)。清理 v1 内置的 6 个预设日历,
+    // 仅删除尚无事项关联的(保护用户已实际使用的分类)
+    up: `
+DELETE FROM calendars
+ WHERE name IN ('例行工作','对接事项','报告提交','临时通知','客运部会议日程','韩亚项目组')
+   AND id NOT IN (SELECT DISTINCT calendar_id FROM events WHERE calendar_id IS NOT NULL);
 `
   }
 ]

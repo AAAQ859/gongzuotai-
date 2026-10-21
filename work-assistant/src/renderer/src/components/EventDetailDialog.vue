@@ -8,6 +8,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Calendar, Contact, WorkEvent } from '@shared/types'
 import { db } from '@/api/db'
 import { categoryColor, deadlineLabel } from '@/utils/dashboard'
+import { eventState } from '@/utils/calendar'
 
 const props = defineProps<{
   modelValue: boolean
@@ -35,18 +36,21 @@ const contact = computed(() =>
     : undefined
 )
 
+/** 状态:手动优先,未手动标记的按开始/结束时间自动识别(见 utils/calendar.ts eventState) */
 const statusMeta = computed<{ label: string; cls: string }>(() => {
-  switch (props.event?.status) {
-    case 'done':
-      return { label: '已完成', cls: 'is-done' }
-    case 'in_progress':
-      return { label: '进行中', cls: 'is-progress' }
-    case 'cancelled':
-      return { label: '已取消', cls: 'is-cancelled' }
-    default:
-      return { label: '待办', cls: 'is-todo' }
-  }
+  if (!props.event) return { label: '', cls: '' }
+  const s = eventState(props.event)
+  return { label: s.label, cls: `is-${s.key.replace('_', '-')}` }
 })
+
+function reminderText(): string {
+  if (!props.event?.end_time || !props.event.reminder_enabled) return ''
+  const mins = props.event.reminder_minutes ?? (props.event.reminder_days ? props.event.reminder_days * 1440 : null)
+  if (!mins) return ''
+  if (mins >= 1440 && mins % 1440 === 0) return `结束前 ${mins / 1440} 天提醒`
+  if (mins >= 60 && mins % 60 === 0) return `结束前 ${mins / 60} 小时提醒`
+  return `结束前 ${mins} 分钟提醒`
+}
 
 function timeText(): string {
   if (!props.event) return ''
@@ -139,7 +143,7 @@ async function remove(): Promise<void> {
         </div>
         <div v-if="contact" class="detail__row">
           <span class="detail__label">对接人</span>
-          <span class="detail__value">{{ contact.name }} · {{ contact.department }}</span>
+          <span class="detail__value">{{ contact.department ? `${contact.name} · ${contact.department}` : contact.name }}</span>
         </div>
         <div v-if="event.related_files.length" class="detail__row">
           <span class="detail__label">关联文件</span>
@@ -153,6 +157,10 @@ async function remove(): Promise<void> {
               {{ deadlineLabel(event.end_time) }}
             </span>
           </span>
+        </div>
+        <div v-if="reminderText()" class="detail__row">
+          <span class="detail__label">提醒</span>
+          <span class="detail__value">🔔 {{ reminderText() }}</span>
         </div>
         <div v-if="event.description" class="detail__row">
           <span class="detail__label">备注</span>
@@ -244,9 +252,17 @@ async function remove(): Promise<void> {
   color: #f59f00;
   background: #fff4e6;
 }
-.detail__status.is-progress {
-  color: #228be6;
-  background: #e9f5ff;
+.detail__status.is-not-started {
+  color: #868e96;
+  background: #f1f3f5;
+}
+.detail__status.is-in-progress {
+  color: #12b886;
+  background: #e6f7f1;
+}
+.detail__status.is-ended {
+  color: #868e96;
+  background: #f1f3f5;
 }
 .detail__status.is-done {
   color: #2f9e44;
@@ -255,6 +271,7 @@ async function remove(): Promise<void> {
 .detail__status.is-cancelled {
   color: #868e96;
   background: #f1f3f5;
+  text-decoration: line-through;
 }
 
 .detail__deadline {

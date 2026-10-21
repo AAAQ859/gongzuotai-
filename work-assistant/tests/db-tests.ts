@@ -67,13 +67,7 @@ try {
 
   console.log('【2】默认种子数据')
   const defCalendars = calendars.list()
-  check('默认日历分类 6 个', defCalendars.length === 6, `实际 ${defCalendars.length}`)
-  check(
-    '日程类 4 个 / 会议类 2 个',
-    defCalendars.filter((c) => c.kind === 'schedule').length === 4 &&
-      defCalendars.filter((c) => c.kind === 'meeting').length === 2
-  )
-  check('首个分类为"例行工作"', defCalendars[0].name === '例行工作')
+  check('日历分类不内置预设(用户自建)', defCalendars.length === 0, `实际 ${defCalendars.length}`)
   check(
     '默认提醒设置存在',
     settings.get('meeting_reminder_minutes') === '15' &&
@@ -176,14 +170,19 @@ try {
   check('全部设置包含写入项', settings.all()['test_key'] === 'v1')
 
   console.log('【11】外键行为与迁移幂等')
-  const evCal = events.create({ title: '外键测试', calendar_id: defCalendars[0].id })
-  calendars.remove(defCalendars[0].id)
+  const calOwn = calendars.create({ name: '自建日历', color: '#123456', kind: 'schedule' })
+  const evCal = events.create({ title: '外键测试', calendar_id: calOwn.id })
+  calendars.remove(calOwn.id)
   check('删除日历后事项 calendar_id 置空', events.get(evCal.id).calendar_id === null)
   events.remove(evCal.id)
   closeDatabase()
   initDatabaseAt(tempDir)
   check('重开数据库迁移幂等', schemaVersion() === migrations.length)
-  check('重开数据库数据持久化', calendars.list().length === 5, `实际 ${calendars.list().length}`)
+  check('重开数据库数据持久化', calendars.list().length === 0, `实际 ${calendars.list().length}`)
+  const calPersist = calendars.create({ name: '重开自建', kind: 'meeting' })
+  closeDatabase()
+  initDatabaseAt(tempDir)
+  check('重开后自建日历仍在', calendars.list().some((c) => c.id === calPersist.id))
   closeDatabase()
 } finally {
   rmSync(tempDir, { recursive: true, force: true })
