@@ -37,8 +37,10 @@ const api = {
     ipcRenderer.on('app:reminders-changed', () => cb())
   },
 
-  /** 应用内通知兜底(提醒触发/测试通知;系统 toast 被勿扰等抑制时仍可见) */
-  onInAppNotify: (cb: (payload: { title: string; body: string; route: string | null }) => void): void => {
+  /** 应用内通知兜底(提醒触发/测试通知;系统 toast 被勿扰等抑制时仍可见;persistent 时不自动消失) */
+  onInAppNotify: (
+    cb: (payload: { title: string; body: string; route: string | null; persistent?: boolean }) => void
+  ): void => {
     ipcRenderer.on('app:in-app-notify', (_event, payload) => cb(payload))
   }
 }

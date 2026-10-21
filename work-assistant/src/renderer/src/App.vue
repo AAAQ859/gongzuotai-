@@ -11,16 +11,18 @@ onMounted(() => {
   window.api.onNavigate((route) => {
     router.push(route)
   })
-  // 应用内通知兜底:提醒触发/测试通知时窗口内也弹一条(系统 toast 可能被勿扰抑制)
-  window.api.onInAppNotify(({ title, body, route }) => {
-    ElNotification({
+  // 应用内通知兜底:提醒触发/测试通知时窗口内也弹一条(系统 toast 可能被勿扰抑制)。
+  // 到点提醒常驻(duration 0):不自动消失,点击跳转并关闭,或手动点 × 关闭
+  window.api.onInAppNotify(({ title, body, route, persistent }) => {
+    const inst = ElNotification({
       title,
       message: body,
       type: 'info',
-      duration: 8000,
+      duration: persistent ? 0 : 8000,
       position: 'bottom-right',
       onClick: () => {
         if (route) router.push(route)
+        inst.close()
       }
     })
   })

@@ -165,7 +165,8 @@ export function registerIpc(): void {
     try {
       const supported = Notification.isSupported()
       if (supported) new Notification({ title, body }).show()
-      event.sender.send('app:in-app-notify', { title, body, route: null })
+      // 测试通知为即时反馈,应用内卡片 8 秒自动消失(到点提醒才是常驻)
+      event.sender.send('app:in-app-notify', { title, body, route: null, persistent: false })
       return { ok: true, system: supported }
     } catch (err) {
       return { ok: false, system: false, error: err instanceof Error ? err.message : String(err) }

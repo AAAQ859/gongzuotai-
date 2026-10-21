@@ -112,8 +112,9 @@ let getWin: (() => BrowserWindow | null) | null = null
 
 function showNotification(title: string, body: string, type: string, eventId: number | null): void {
   const route = NAV_BY_TYPE[type] ?? '#/reminders'
-  // 应用内通知兜底:系统 toast 被「勿扰/专注助手」或应用通知设置抑制时,窗口内仍可见
-  getWin?.()?.webContents.send('app:in-app-notify', { title, body, route })
+  // 应用内通知兜底:系统 toast 被「勿扰/专注助手」或应用通知设置抑制时,窗口内仍可见。
+  // 到点提醒常驻(persistent),不自动消失,直到用户点击或手动关闭——最小化/离开后回来也不错过
+  getWin?.()?.webContents.send('app:in-app-notify', { title, body, route, persistent: true })
   if (!Notification.isSupported()) {
     console.log('[reminder] Notification unsupported, skip toast')
     return

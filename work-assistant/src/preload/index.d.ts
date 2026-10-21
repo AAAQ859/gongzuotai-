@@ -15,7 +15,7 @@ export interface Api {
   onNavigate: (cb: (route: string) => void) => void
   onRemindersChanged: (cb: () => void) => void
   onInAppNotify: (
-    cb: (payload: { title: string; body: string; route: string | null }) => void
+    cb: (payload: { title: string; body: string; route: string | null; persistent?: boolean }) => void
   ) => void
 }
 
