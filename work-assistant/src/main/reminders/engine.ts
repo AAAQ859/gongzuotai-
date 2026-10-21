@@ -95,6 +95,8 @@ function fire(reminder: { id: number; event_id: number | null; remind_at: string
   if (reminder.type === 'event' && location) body = `${reminder.message}`
   remindersRepo.markFired(reminder.id)
   showNotification(titles[reminder.type] ?? '提醒', body, reminder.type, reminder.event_id)
+  // 通知渲染层刷新提醒中心(若已打开)
+  getWin?.()?.webContents.send('app:reminders-changed')
   console.log(`[reminder] fired id=${reminder.id} type=${reminder.type} event=${eventTitle} at=${nowStr()}`)
 }
 

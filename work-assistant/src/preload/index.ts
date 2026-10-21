@@ -28,6 +28,11 @@ const api = {
   /** 系统通知点击 → 主进程导航指令(提醒引擎发送,如 '#/meetings') */
   onNavigate: (cb: (route: string) => void): void => {
     ipcRenderer.on('app:navigate', (_event, route: string) => cb(route))
+  },
+
+  /** 提醒触发 → 通知渲染层刷新提醒中心 */
+  onRemindersChanged: (cb: () => void): void => {
+    ipcRenderer.on('app:reminders-changed', () => cb())
   }
 }
 

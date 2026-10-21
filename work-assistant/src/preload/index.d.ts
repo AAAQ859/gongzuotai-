@@ -12,6 +12,7 @@ export interface Api {
     testNotification: () => Promise<{ ok: boolean; error?: string }>
   }
   onNavigate: (cb: (route: string) => void) => void
+  onRemindersChanged: (cb: () => void) => void
 }
 
 declare global {

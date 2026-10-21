@@ -71,7 +71,11 @@ function go(r: Reminder): void {
   router.push(TYPE_META[r.type].route)
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  // 引擎触发提醒(系统通知弹出)时实时刷新列表
+  window.api.onRemindersChanged(() => load())
+})
 </script>
 
 <template>
