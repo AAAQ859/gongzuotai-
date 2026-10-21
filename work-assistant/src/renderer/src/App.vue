@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import router from './router'
+
+// 系统通知点击 → 主进程导航指令(提醒引擎发送 '#/meetings' 等路由)
+onMounted(() => {
+  window.api.onNavigate((route) => {
+    router.push(route)
+  })
+})
 
 const route = useRoute()
 

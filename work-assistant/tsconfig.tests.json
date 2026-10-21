@@ -16,5 +16,12 @@
       "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["src/main/db/**/*", "src/shared/**/*", "src/renderer/src/utils/**/*", "tests/**/*"]
+  "include": [
+    "src/main/db/**/*",
+    "src/main/reminders/**/*",
+    "src/shared/**/*",
+    "src/renderer/src/utils/**/*",
+    "tests/**/*"
+  ],
+  "exclude": ["src/main/reminders/engine.ts"]
 }

@@ -167,6 +167,7 @@ export const DB_ACTIONS = {
   boardsUpdate: 'boards.update',
   boardsRemove: 'boards.remove',
   remindersPending: 'reminders.pending',
+  remindersListAll: 'reminders.listAll',
   remindersCreate: 'reminders.create',
   remindersMarkFired: 'reminders.markFired',
   remindersDismiss: 'reminders.dismiss',

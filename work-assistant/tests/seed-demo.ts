@@ -10,6 +10,8 @@ import { closeDatabase, dbFilePath, initDatabaseAt } from '../src/main/db/databa
 import * as calendars from '../src/main/db/repositories/calendars'
 import * as contacts from '../src/main/db/repositories/contacts'
 import * as events from '../src/main/db/repositories/events'
+import * as reminders from '../src/main/db/repositories/reminders'
+import { fmtCn } from '../src/shared/reminder-text'
 import { addDays, computeSummary, fmtDate, startOfWeek } from '../src/renderer/src/utils/dashboard'
 
 const dir = process.argv[2]
@@ -190,6 +192,7 @@ mk({
 })
 
 // 远期会议(迷你日历点缀)
+// 集团公司会议:会前 30 分钟提醒(提醒中心待触发演示)
 mk({
   calendar_id: byName('客运部会议日程'),
   kind: 'meeting',
@@ -197,7 +200,9 @@ mk({
   category: '例会',
   start_time: `${addDays(today, 1)} 10:00`,
   end_time: `${addDays(today, 1)} 11:00`,
-  location: '集团公司大楼'
+  location: '集团公司大楼',
+  reminder_enabled: 1,
+  reminder_minutes: 30
 })
 mk({
   calendar_id: byName('韩亚项目组'),
@@ -225,7 +230,9 @@ mk({
   category: '对接',
   contact_id: zhang.id,
   start_time: `${today} 09:00`,
-  end_time: `${addDays(today, 2)} 18:00`
+  end_time: `${addDays(today, 2)} 18:00`,
+  reminder_enabled: 1,
+  reminder_minutes: 1440 // 截止前 1 天提醒(提醒中心待触发演示)
 })
 mk({
   calendar_id: byName('报告提交'),
@@ -250,6 +257,16 @@ mk({
   category: '协调',
   start_time: `${addDays(today, 4)} 10:00`,
   end_time: `${addDays(today, 4)} 18:00`
+})
+// 已逾期的对接事项(对接催办汇总演示:应用启动后引擎每天触发一次催办提醒)
+mk({
+  calendar_id: byName('对接事项'),
+  kind: 'task',
+  title: '航线资料催收',
+  category: '对接',
+  contact_id: piao.id,
+  start_time: `${addDays(today, -3)} 09:00`,
+  end_time: `${addDays(today, -1)} 18:00`
 })
 const doneEv = events.create({
   calendar_id: byName('例行工作'),
@@ -289,6 +306,29 @@ for (const s of spread) {
   })
 }
 
+// 提醒历史记录(提醒中心「已触发/已忽略」演示;待触发行由应用启动时引擎回填,不在此预置)
+const firedDaily = reminders.create({
+  event_id: null,
+  remind_at: `${addDays(today, -1)} 09:00`,
+  type: 'daily',
+  message: '今日会议清单与待办事项晨间推送'
+})
+reminders.markFired(firedDaily.id)
+const firedDeadline = reminders.create({
+  event_id: null,
+  remind_at: `${addDays(today, -1)} 14:00`,
+  type: 'deadline',
+  message: `「月度安全报告提交」将于 ${fmtCn(`${addDays(today, -1)} 17:00`)} 截止,对接人:王主任`
+})
+reminders.markFired(firedDeadline.id)
+const dismissedOne = reminders.create({
+  event_id: null,
+  remind_at: `${today} 08:30`,
+  type: 'event',
+  message: `「部门例会」将于 ${fmtCn(`${today} 09:30`)} 开始 · 天府B216会议室 / 双流连线`
+})
+reminders.dismiss(dismissedOne.id)
+
 // 汇总输出(供验收比对)
 const summary = computeSummary(events.list(), now)
 const demo = {
@@ -302,7 +342,8 @@ const demo = {
   todayEvents: summary.todayEvents.length,
   focus: summary.focusCount,
   contacts: contacts.list().length,
-  contactGroups: grps.length
+  contactGroups: grps.length,
+  reminderRows: reminders.listAll().length
 }
 console.log('DEMO_SUMMARY: ' + JSON.stringify(demo))
 

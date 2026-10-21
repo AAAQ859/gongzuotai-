@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import type { DbStatus } from '@shared/types'
 import { DB_ACTIONS } from '@shared/types'
+import { db } from '@/api/db'
 
 const appVersion = ref('')
 const dbStatus = ref<DbStatus | null>(null)
 const dbError = ref('')
+
+// 提醒设置(板块 06):修改即保存,主进程联动重算提醒行
+const meetingMins = ref('15')
+const dailyTime = ref('09:00')
+const testing = ref(false)
 
 onMounted(async () => {
   try {
@@ -19,7 +26,45 @@ onMounted(async () => {
   } else {
     dbError.value = res.error ?? '无法读取数据库状态'
   }
+  try {
+    meetingMins.value = await db.settings.get('meeting_reminder_minutes', '15')
+    dailyTime.value = await db.settings.get('daily_push_time', '09:00')
+  } catch {
+    // 设置读取失败时保留默认值
+  }
 })
+
+async function saveMeetingMins(): Promise<void> {
+  try {
+    await db.settings.set('meeting_reminder_minutes', meetingMins.value)
+    ElMessage.success('已保存,会议提醒已按新设置重新排期')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
+}
+
+async function saveDailyTime(): Promise<void> {
+  try {
+    await db.settings.set('daily_push_time', dailyTime.value)
+    ElMessage.success('已保存,晨间推送时间已更新')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
+}
+
+async function testNotification(): Promise<void> {
+  testing.value = true
+  try {
+    const res = await window.api.shell.testNotification()
+    if (res.ok) {
+      ElMessage.success('测试通知已弹出,请留意屏幕右下角')
+    } else {
+      ElMessage.warning(res.error ?? '当前系统不支持通知')
+    }
+  } finally {
+    testing.value = false
+  }
+}
 </script>
 
 <template>
@@ -58,6 +103,41 @@ onMounted(async () => {
       </div>
       <el-alert v-else-if="dbError" type="error" :title="dbError" :closable="false" />
       <el-skeleton v-else :rows="5" />
+    </el-card>
+
+    <el-card shadow="never" class="settings-card">
+      <template #header>提醒设置</template>
+      <div class="settings-row">
+        <span class="settings-label">会议提前提醒</span>
+        <el-select v-model="meetingMins" style="width: 180px" @change="saveMeetingMins">
+          <el-option label="提前 5 分钟" value="5" />
+          <el-option label="提前 10 分钟" value="10" />
+          <el-option label="提前 15 分钟" value="15" />
+          <el-option label="提前 30 分钟" value="30" />
+          <el-option label="提前 1 小时" value="60" />
+          <el-option label="关闭会议提醒" value="0" />
+        </el-select>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">晨间推送时间</span>
+        <el-time-select
+          v-model="dailyTime"
+          start="06:00"
+          end="12:00"
+          step="00:10"
+          placeholder="选择推送时间"
+          @change="saveDailyTime"
+        />
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">系统通知</span>
+        <el-button size="small" :loading="testing" @click="testNotification">
+          发送测试通知
+        </el-button>
+      </div>
+      <div class="settings-hint">
+        单个会议可在编辑器中单独指定提前量;未单独指定的会议按上方设置提醒。事项的截止提醒只在编辑事项时单独开启。
+      </div>
     </el-card>
 
     <el-card shadow="never" class="settings-card">
@@ -113,5 +193,11 @@ onMounted(async () => {
   font-size: 12px;
   word-break: break-all;
   text-align: right;
+}
+
+.settings-hint {
+  font-size: 12px;
+  color: var(--wa-text-muted);
+  padding-top: 4px;
 }
 </style>

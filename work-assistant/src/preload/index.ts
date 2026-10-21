@@ -11,7 +11,7 @@ const api = {
       ipcRenderer.invoke('db:invoke', action, payload)
   } satisfies DbApi,
 
-  /** 系统集成:拨号(仅 tel: 协议)与通讯录 Excel/CSV 导入 */
+  /** 系统集成:拨号(仅 tel: 协议)、通讯录 Excel/CSV 导入与通知测试 */
   shell: {
     openExternal: (url: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('shell:openExternal', url),
@@ -20,7 +20,14 @@ const api = {
     readImportFile: (
       filePath: string
     ): Promise<{ kind: 'xlsx' | 'csv'; raw: string | string[][] }> =>
-      ipcRenderer.invoke('file:readImportFile', filePath)
+      ipcRenderer.invoke('file:readImportFile', filePath),
+    testNotification: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('shell:testNotification')
+  },
+
+  /** 系统通知点击 → 主进程导航指令(提醒引擎发送,如 '#/meetings') */
+  onNavigate: (cb: (route: string) => void): void => {
+    ipcRenderer.on('app:navigate', (_event, route: string) => cb(route))
   }
 }
 

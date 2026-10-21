@@ -10,6 +10,7 @@ import type {
   DbAction,
   EventKind,
   EventStatus,
+  Reminder,
   WorkEvent
 } from '@shared/types'
 
@@ -125,6 +126,14 @@ export const db = {
     update: (id: number, patch: Partial<Pick<ContactGroup, 'name' | 'icon'>>): Promise<ContactGroup> =>
       invoke(DB_ACTIONS.groupsUpdate, { id, ...patch }),
     remove: (id: number): Promise<void> => invoke(DB_ACTIONS.groupsRemove, { id })
+  },
+  reminders: {
+    /** 尚未触发的提醒(可按时刻过滤,提醒中心待触发 tab) */
+    pending: (before?: string): Promise<Reminder[]> =>
+      invoke(DB_ACTIONS.remindersPending, before ? { before } : undefined),
+    /** 全部提醒记录(按计划时刻倒序) */
+    listAll: (): Promise<Reminder[]> => invoke(DB_ACTIONS.remindersListAll),
+    dismiss: (id: number): Promise<void> => invoke(DB_ACTIONS.remindersDismiss, { id })
   },
   settings: {
     get: (key: string, defaultValue?: string): Promise<string> =>

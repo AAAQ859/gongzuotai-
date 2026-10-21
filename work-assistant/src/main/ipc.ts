@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell } from 'electron'
+import { app, dialog, ipcMain, Notification, shell } from 'electron'
 import { readFileSync } from 'node:fs'
 import { extname } from 'node:path'
 import * as XLSX from 'xlsx'
@@ -11,6 +11,7 @@ import * as contactsRepo from './db/repositories/contacts'
 import * as boardsRepo from './db/repositories/boards'
 import * as remindersRepo from './db/repositories/reminders'
 import * as settingsRepo from './db/repositories/settings'
+import * as reminderEngine from './reminders/engine'
 
 type Handler = (payload: unknown) => unknown
 
@@ -55,14 +56,22 @@ const handlers: Record<string, Handler> = {
   // ---------- 事项 ----------
   'events.list': (p) => eventsRepo.list((p ?? {}) as Parameters<typeof eventsRepo.list>[0]),
   'events.get': (p) => eventsRepo.get((p as { id: number }).id),
-  'events.create': (p) => eventsRepo.create(p as Parameters<typeof eventsRepo.create>[0]),
+  'events.create': (p) => {
+    const row = eventsRepo.create(p as Parameters<typeof eventsRepo.create>[0])
+    reminderEngine.syncEventReminders(row.id)
+    return row
+  },
   'events.update': (p) => {
     const { id, ...patch } = p as { id: number }
-    return eventsRepo.update(id, patch)
+    const row = eventsRepo.update(id, patch)
+    reminderEngine.syncEventReminders(id)
+    return row
   },
   'events.setStatus': (p) => {
     const { id, status } = p as { id: number; status: 'todo' | 'in_progress' | 'done' | 'cancelled' }
-    return eventsRepo.setStatus(id, status)
+    const row = eventsRepo.setStatus(id, status)
+    reminderEngine.syncEventReminders(id)
+    return row
   },
   'events.remove': (p) => eventsRepo.remove((p as { id: number }).id),
 
@@ -103,6 +112,7 @@ const handlers: Record<string, Handler> = {
 
   // ---------- 提醒 ----------
   'reminders.pending': (p) => remindersRepo.listPending((p as { before?: string })?.before),
+  'reminders.listAll': () => remindersRepo.listAll(),
   'reminders.create': (p) =>
     remindersRepo.create(p as Parameters<typeof remindersRepo.create>[0]),
   'reminders.markFired': (p) => remindersRepo.markFired((p as { id: number }).id),
@@ -116,6 +126,7 @@ const handlers: Record<string, Handler> = {
   'settings.set': (p) => {
     const { key, value } = p as { key: string; value: string }
     settingsRepo.set(key, value)
+    reminderEngine.onReminderSettingsChanged(key)
     return { key, value }
   },
   'settings.all': () => settingsRepo.all()
@@ -139,6 +150,17 @@ export function registerIpc(): void {
       const parsed = new URL(url)
       if (parsed.protocol !== 'tel:') return { ok: false, error: '仅支持 tel: 协议' }
       await shell.openExternal(url)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // 测试提醒:立即弹一条系统通知(设置页「测试通知」按钮)
+  ipcMain.handle('shell:testNotification', async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (!Notification.isSupported()) return { ok: false, error: '当前系统不支持通知' }
+      new Notification({ title: '🔔 测试通知', body: '工作台助手提醒功能正常' }).show()
       return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }

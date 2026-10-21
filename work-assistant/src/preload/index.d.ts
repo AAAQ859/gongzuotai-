@@ -9,7 +9,9 @@ export interface Api {
     readImportFile: (
       filePath: string
     ) => Promise<{ kind: 'xlsx' | 'csv'; raw: string | string[][] }>
+    testNotification: () => Promise<{ ok: boolean; error?: string }>
   }
+  onNavigate: (cb: (route: string) => void) => void
 }
 
 declare global {

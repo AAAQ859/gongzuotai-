@@ -73,7 +73,8 @@ function initForm(): void {
     form.status = ev.status
     form.description = ev.description
     const mins = ev.reminder_minutes ?? (ev.reminder_days ? ev.reminder_days * 1440 : null)
-    form.reminder = ev.reminder_enabled && mins ? mins : 0
+    // 会议未单独指定提前量时为「跟随全局设置」(-1);事项无提前量则视为不提醒
+    form.reminder = ev.reminder_enabled ? (mins ?? (ev.kind === 'meeting' ? -1 : 0)) : 0
     return
   }
   const base = props.defaultDate ? `${props.defaultDate} 09:00` : null
@@ -92,7 +93,8 @@ function initForm(): void {
   form.contact_id = null
   form.status = 'todo'
   form.description = ''
-  form.reminder = 30 // 默认:结束前 30 分钟提醒(用户确认)
+  // 会议默认跟随全局设置(-1),事项默认结束前 30 分钟提醒(用户确认)
+  form.reminder = form.kind === 'meeting' ? -1 : 30
 }
 
 watch(
@@ -163,8 +165,23 @@ async function submit(): Promise<void> {
       contact_id: form.kind === 'task' ? (contactId as number | null) : null,
       status: form.kind === 'task' ? form.status : undefined,
       description: form.description.trim() || undefined,
-      reminder_enabled: form.end_time && form.reminder > 0 ? 1 : 0,
-      reminder_minutes: form.end_time && form.reminder > 0 ? form.reminder : null
+      // 会议:0=不提醒、-1=跟随全局设置(分钟存 null)、正数=单独指定;事项:按结束时间提前
+      reminder_enabled:
+        form.kind === 'meeting'
+          ? form.start_time && form.reminder !== 0
+            ? 1
+            : 0
+          : form.end_time && form.reminder > 0
+            ? 1
+            : 0,
+      reminder_minutes:
+        form.kind === 'meeting'
+          ? form.reminder > 0
+            ? form.reminder
+            : null
+          : form.end_time && form.reminder > 0
+            ? form.reminder
+            : null
     }
     if (props.event) {
       await db.events.update(props.event.id, payload)
@@ -299,6 +316,15 @@ async function remove(): Promise<void> {
             :label="c.department ? `${c.name} · ${c.department}` : c.name"
             :value="c.id"
           />
+        </el-select>
+      </el-form-item>
+      <el-form-item v-if="form.kind === 'meeting' && form.start_time" label="开始前提醒">
+        <el-select v-model="form.reminder" style="width: 100%">
+          <el-option label="跟随全局设置(设置页可改)" :value="-1" />
+          <el-option label="不提醒" :value="0" />
+          <el-option label="提前 15 分钟" :value="15" />
+          <el-option label="提前 30 分钟" :value="30" />
+          <el-option label="提前 1 小时" :value="60" />
         </el-select>
       </el-form-item>
       <el-form-item v-if="form.kind === 'task' && form.end_time" label="结束前提醒">

@@ -21,6 +21,18 @@ export function listByEvent(eventId: number): Reminder[] {
   )
 }
 
+/** 删除某事件的待触发行(提醒重算/事件删除前清理,不产生「已忽略」噪音) */
+export function removePendingByEvent(eventId: number): void {
+  getDb()
+    .prepare(`DELETE FROM reminders WHERE event_id = ? AND status = 'pending'`)
+    .run(eventId)
+}
+
+/** 删除某类型的待触发行(晨间推送单行滚动用) */
+export function removePendingByType(type: ReminderType): void {
+  getDb().prepare(`DELETE FROM reminders WHERE type = ? AND status = 'pending'`).run(type)
+}
+
 export interface ReminderInput {
   event_id?: number | null
   remind_at: string
@@ -55,4 +67,16 @@ export function countByStatus(): Record<string, number> {
     getDb().prepare('SELECT status, COUNT(*) AS c FROM reminders GROUP BY status').all()
   )
   return { pending: 0, fired: 0, dismissed: 0, ...Object.fromEntries(rows.map((r) => [r.status, r.c])) }
+}
+
+export function listByTypeFiredSince(type: ReminderType, day: string): Reminder[] {
+  return asRows<Reminder>(
+    getDb()
+      .prepare(`SELECT * FROM reminders WHERE type = ? AND status = 'fired' AND fired_at LIKE ? ORDER BY fired_at`)
+      .all(type, `${day}%`)
+  )
+}
+
+export function listAll(): Reminder[] {
+  return asRows<Reminder>(getDb().prepare('SELECT * FROM reminders ORDER BY remind_at DESC, id DESC').all())
 }
