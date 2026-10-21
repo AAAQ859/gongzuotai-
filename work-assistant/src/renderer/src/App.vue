@@ -6,10 +6,16 @@ import router from './router'
 import { db } from '@/api/db'
 import { applyUiZoom, normalizeUiZoom } from '@/utils/ui-scale'
 
+// 主进程通知携带的路由形如 '#/meetings';hash 模式下必须去掉前导 # 再 push,
+// 否则会被当作相对路径拼成 '#/dashboard#/meetings' 而无法跳转
+function navigateTo(route: string): void {
+  router.push(route.startsWith('#') ? route.slice(1) : route)
+}
+
 // 系统通知点击 → 主进程导航指令(提醒引擎发送 '#/meetings' 等路由)
 onMounted(() => {
   window.api.onNavigate((route) => {
-    router.push(route)
+    navigateTo(route)
   })
   // 应用内通知兜底:提醒触发/测试通知时窗口内也弹一条(系统 toast 可能被勿扰抑制)。
   // 到点提醒常驻(duration 0):不自动消失,点击跳转并关闭,或手动点 × 关闭
@@ -21,7 +27,7 @@ onMounted(() => {
       duration: persistent ? 0 : 8000,
       position: 'bottom-right',
       onClick: () => {
-        if (route) router.push(route)
+        if (route) navigateTo(route)
         inst.close()
       }
     })

@@ -1,5 +1,10 @@
 import type { DbApi } from '@shared/types'
 import type { FileEntry, FileSearchHit, ScanAllResult } from '@shared/files'
+import type {
+  SummaryExportPayload,
+  SummaryExportResult,
+  SummaryFormat
+} from '@shared/summary'
 
 export interface Api {
   appVersion: () => Promise<string>
@@ -28,6 +33,12 @@ export interface Api {
     search: (query: string) => Promise<FileSearchHit[]>
     pickFolder: (defaultPath?: string) => Promise<string | null>
     dropPaths: (files: File[]) => string[]
+  }
+  summary: {
+    export: (
+      format: SummaryFormat,
+      payload: SummaryExportPayload
+    ) => Promise<SummaryExportResult | null>
   }
   onNavigate: (cb: (route: string) => void) => void
   onRemindersChanged: (cb: () => void) => void

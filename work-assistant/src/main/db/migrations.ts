@@ -197,5 +197,26 @@ ALTER TABLE contacts ADD COLUMN purpose TEXT NOT NULL DEFAULT '';
 ALTER TABLE file_items ADD COLUMN content TEXT NOT NULL DEFAULT '';
 CREATE INDEX idx_file_items_board_path ON file_items(board_id, relative_path);
 `
+  },
+  {
+    version: 6,
+    name: 'summary-drafts',
+    // 板块 09 工作纲要导出:按周期保存用户编辑后的纲要草稿
+    // (content 为 SummaryContent JSON,含章节/手动补充事项/备注)
+    up: `
+CREATE TABLE summary_drafts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  period_type TEXT NOT NULL CHECK (period_type IN ('month','week','custom')),
+  period_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  range_start TEXT NOT NULL,
+  range_end TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE (period_type, period_key)
+);
+CREATE INDEX idx_summary_drafts_updated ON summary_drafts(updated_at);
+`
   }
 ]

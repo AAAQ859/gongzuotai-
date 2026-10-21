@@ -1,19 +1,26 @@
-import { app, dialog, ipcMain, Notification, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { readFileSync } from 'node:fs'
 import { extname } from 'node:path'
 import * as XLSX from 'xlsx'
 import { DatabaseSync } from 'node:sqlite'
 import type { DbResult, DbStatus } from '@shared/types'
 import type { FilesResult } from '@shared/files'
+import type {
+  SummaryExportPayload,
+  SummaryExportResult,
+  SummaryFormat
+} from '@shared/summary'
 import { dbFilePath, schemaVersion } from './db/database'
 import * as calendarsRepo from './db/repositories/calendars'
 import * as eventsRepo from './db/repositories/events'
 import * as contactsRepo from './db/repositories/contacts'
 import * as boardsRepo from './db/repositories/boards'
+import * as summariesRepo from './db/repositories/summaries'
 import * as remindersRepo from './db/repositories/reminders'
 import * as settingsRepo from './db/repositories/settings'
 import * as reminderEngine from './reminders/engine'
 import * as filesService from './files/service'
+import { exportSummary } from './summary/export'
 
 type Handler = (payload: unknown) => unknown
 
@@ -28,6 +35,7 @@ const handlers: Record<string, Handler> = {
       'contact_group_map',
       'file_boards',
       'file_items',
+      'summary_drafts',
       'reminders',
       'settings'
     ]
@@ -124,6 +132,18 @@ const handlers: Record<string, Handler> = {
     return row
   },
   'boards.remove': (p) => boardsRepo.remove((p as { id: number }).id),
+
+  // ---------- 工作纲要(板块 09) ----------
+  'summaries.get': (p) => {
+    const { type, key } = p as { type: 'month' | 'week' | 'custom'; key: string }
+    return summariesRepo.get(type, key)
+  },
+  'summaries.save': (p) => summariesRepo.save(p as Parameters<typeof summariesRepo.save>[0]),
+  'summaries.remove': (p) => {
+    const { type, key } = p as { type: 'month' | 'week' | 'custom'; key: string }
+    summariesRepo.remove(type, key)
+    return null
+  },
 
   // ---------- 提醒 ----------
   'reminders.pending': (p) => remindersRepo.listPending((p as { before?: string })?.before),
@@ -299,6 +319,22 @@ export function registerIpc(): void {
     async (_event, p: { defaultPath?: string }): Promise<FilesResult<string | null>> => {
       try {
         return { ok: true, data: await filesService.pickFolder(p?.defaultPath) }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  // ---------- 工作纲要导出(板块 09) ----------
+  ipcMain.handle(
+    'summary:export',
+    async (
+      event,
+      p: { format: SummaryFormat; payload: SummaryExportPayload }
+    ): Promise<FilesResult<SummaryExportResult | null>> => {
+      try {
+        const parent = BrowserWindow.fromWebContents(event.sender)
+        return { ok: true, data: await exportSummary(p.format, p.payload, parent) }
       } catch (err) {
         return { ok: false, error: errText(err) }
       }

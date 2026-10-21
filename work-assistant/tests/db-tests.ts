@@ -16,9 +16,11 @@ import * as calendars from '../src/main/db/repositories/calendars'
 import * as events from '../src/main/db/repositories/events'
 import * as contacts from '../src/main/db/repositories/contacts'
 import * as boards from '../src/main/db/repositories/boards'
+import * as summaries from '../src/main/db/repositories/summaries'
 import * as reminders from '../src/main/db/repositories/reminders'
 import * as settings from '../src/main/db/repositories/settings'
 import { migrations } from '../src/main/db/migrations'
+import { emptySummaryContent } from '../src/shared/summary'
 
 let passed = 0
 let failed = 0
@@ -58,6 +60,7 @@ try {
     'contact_group_map',
     'file_boards',
     'file_items',
+    'summary_drafts',
     'reminders',
     'settings',
     'schema_migrations'
@@ -169,6 +172,57 @@ try {
   check('设置写入读取', settings.get('test_key') === 'v1')
   check('全部设置包含写入项', settings.all()['test_key'] === 'v1')
 
+  console.log('【10.5】工作纲要草稿')
+  check('未保存的周期返回 null', summaries.get('month', '2026-10') === null)
+  const draftContent = emptySummaryContent()
+  draftContent.note = '本月补充说明'
+  draftContent.sections[0].items.push({
+    id: 'manual-1',
+    title: '手动补充事项',
+    description: '补充说明',
+    date: '2026-10-08',
+    source: 'manual'
+  })
+  const savedDraft = summaries.save({
+    period_type: 'month',
+    period_key: '2026-10',
+    title: '2026年10月工作内容纲要',
+    range_start: '2026-10-01',
+    range_end: '2026-10-31',
+    content: draftContent
+  })
+  check('草稿保存成功', savedDraft.id > 0)
+  check('草稿标题落库', savedDraft.title === '2026年10月工作内容纲要')
+  check('草稿内容 JSON 可读回', savedDraft.content.sections[0].items.length === 1)
+  check('草稿备注落库', savedDraft.content.note === '本月补充说明')
+  check('按周期读取草稿', summaries.get('month', '2026-10')?.id === savedDraft.id)
+  check('不同周期互不影响', summaries.get('week', '2026-10-19') === null)
+  const updatedDraft = summaries.save({
+    period_type: 'month',
+    period_key: '2026-10',
+    title: '2026年10月工作内容纲要(修订)',
+    range_start: '2026-10-01',
+    range_end: '2026-10-31',
+    content: draftContent
+  })
+  check('同周期重复保存为覆盖更新', updatedDraft.id === savedDraft.id)
+  check(
+    '覆盖后仅一条记录',
+    (getDb().prepare("SELECT COUNT(*) n FROM summary_drafts WHERE period_type='month'").get() as { n: number }).n === 1
+  )
+  check('覆盖后标题更新', summaries.get('month', '2026-10')?.title.includes('修订') === true)
+  summaries.save({
+    period_type: 'week',
+    period_key: '2026-10-19',
+    title: '2026年10月19日 - 10月25日工作内容纲要',
+    range_start: '2026-10-19',
+    range_end: '2026-10-25',
+    content: emptySummaryContent()
+  })
+  check('周草稿与月草稿并存', summaries.get('week', '2026-10-19') !== null)
+  summaries.remove('week', '2026-10-19')
+  check('删除草稿', summaries.get('week', '2026-10-19') === null)
+
   console.log('【11】外键行为与迁移幂等')
   const calOwn = calendars.create({ name: '自建日历', color: '#123456', kind: 'schedule' })
   const evCal = events.create({ title: '外键测试', calendar_id: calOwn.id })
@@ -179,6 +233,7 @@ try {
   initDatabaseAt(tempDir)
   check('重开数据库迁移幂等', schemaVersion() === migrations.length)
   check('重开数据库数据持久化', calendars.list().length === 0, `实际 ${calendars.list().length}`)
+  check('重开后纲要草稿仍在', summaries.get('month', '2026-10')?.title.includes('修订') === true)
   const calPersist = calendars.create({ name: '重开自建', kind: 'meeting' })
   closeDatabase()
   initDatabaseAt(tempDir)

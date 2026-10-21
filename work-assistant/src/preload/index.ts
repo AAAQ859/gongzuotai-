@@ -1,6 +1,11 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { DbAction, DbApi, DbResult } from '@shared/types'
 import type { FileEntry, FileSearchHit, FilesResult, ScanAllResult } from '@shared/files'
+import type {
+  SummaryExportPayload,
+  SummaryExportResult,
+  SummaryFormat
+} from '@shared/summary'
 
 /** 文件板块通道调用:失败统一抛错,调用方 catch 后提示 */
 async function invokeFiles<T>(channel: string, payload?: unknown): Promise<T> {
@@ -63,6 +68,15 @@ const api = {
     /** 拖拽进窗口的文件 → 本地绝对路径(webUtils 仅预加载可用) */
     dropPaths: (files: unknown[]): string[] =>
       files.map((f) => webUtils.getPathForFile(f as Parameters<typeof webUtils.getPathForFile>[0]))
+  },
+
+  /** 工作纲要导出(板块 09):TXT/Excel/Word/PDF,返回落盘路径或 null(取消) */
+  summary: {
+    export: (
+      format: SummaryFormat,
+      payload: SummaryExportPayload
+    ): Promise<SummaryExportResult | null> =>
+      invokeFiles('summary:export', { format, payload })
   },
 
   /** 系统通知点击 → 主进程导航指令(提醒引擎发送,如 '#/meetings') */

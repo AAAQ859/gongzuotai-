@@ -14,6 +14,7 @@ import type {
   Reminder,
   WorkEvent
 } from '@shared/types'
+import type { SummaryContent, SummaryDraft, SummaryMode } from '@shared/summary'
 
 async function invoke<T>(action: DbAction, payload?: unknown): Promise<T> {
   const res = await window.api.db.invoke<T>(action, payload)
@@ -135,6 +136,20 @@ export const db = {
     update: (id: number, patch: Partial<Pick<FileBoard, 'name' | 'root_path' | 'icon' | 'color'>>): Promise<FileBoard> =>
       invoke(DB_ACTIONS.boardsUpdate, { id, ...patch }),
     remove: (id: number): Promise<void> => invoke(DB_ACTIONS.boardsRemove, { id })
+  },
+  summaries: {
+    get: (type: SummaryMode, key: string): Promise<SummaryDraft | null> =>
+      invoke(DB_ACTIONS.summariesGet, { type, key }),
+    save: (input: {
+      period_type: SummaryMode
+      period_key: string
+      title: string
+      range_start: string
+      range_end: string
+      content: SummaryContent
+    }): Promise<SummaryDraft> => invoke(DB_ACTIONS.summariesSave, input),
+    remove: (type: SummaryMode, key: string): Promise<null> =>
+      invoke(DB_ACTIONS.summariesRemove, { type, key })
   },
   reminders: {
     /** 尚未触发的提醒(可按时刻过滤,提醒中心待触发 tab) */

@@ -4,6 +4,7 @@ import { writeFileSync } from 'fs'
 import { initDatabase } from './db/database'
 import { registerIpc } from './ipc'
 import * as reminderEngine from './reminders/engine'
+import { startMonthlyReminder } from './summary/monthly'
 
 // 验收截图模式可指定独立数据目录(SCREENSHOT_USERDATA),用于演示数据验收,不污染真实用户数据
 if (process.env.SCREENSHOT_USERDATA) {
@@ -106,6 +107,9 @@ app.whenReady().then(() => {
 
   // 提醒引擎:回填事件提醒行并开始定时检查(板块 06)
   reminderEngine.startEngine(() => BrowserWindow.getAllWindows()[0] ?? null)
+
+  // 月末纲要草稿提醒(板块 09):最后一个工作日自动生成草稿并通知
+  startMonthlyReminder(() => BrowserWindow.getAllWindows()[0] ?? null)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

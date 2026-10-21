@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { dirname, resolve } from 'path'
 import AdmZip from 'adm-zip'
 import * as XLSX from 'xlsx'
-import { closeDatabase, dbFilePath, initDatabaseAt } from '../src/main/db/database'
+import { closeDatabase, dbFilePath, getDb, initDatabaseAt } from '../src/main/db/database'
 import * as fileBoardsRepo from '../src/main/db/repositories/boards'
 import * as calendars from '../src/main/db/repositories/calendars'
 import * as contacts from '../src/main/db/repositories/contacts'
@@ -17,6 +17,13 @@ import * as events from '../src/main/db/repositories/events'
 import * as reminders from '../src/main/db/repositories/reminders'
 import { scanFolder } from '../src/main/files/extract'
 import { fmtCn } from '../src/shared/reminder-text'
+import {
+  buildSummaryContent,
+  monthRange,
+  rangeSpanText,
+  rangeTitle,
+  summaryStats
+} from '../src/shared/summary'
 import { addDays, computeSummary, fmtDate, startOfWeek } from '../src/renderer/src/utils/dashboard'
 import { buildTimeline } from '../src/renderer/src/utils/timeline'
 
@@ -163,6 +170,12 @@ const mk = (p: Parameters<typeof events.create>[0]): void => {
   events.create(p)
 }
 
+/** 标记完成并把完成时间回填到指定日期(演示数据用,保证月度纲要有历史完成项) */
+function markDoneOn(id: number, date: string, time = '17:00'): void {
+  events.setStatus(id, 'done')
+  getDb().prepare('UPDATE events SET completed_at = ? WHERE id = ?').run(`${date} ${time}`, id)
+}
+
 // 今日会议 ×3
 mk({
   calendar_id: byName('客运部会议日程'),
@@ -229,7 +242,7 @@ const reportDone = events.create({
   start_time: `${addDays(today, -20)} 09:00`,
   end_time: `${addDays(today, -20)} 10:00`
 })
-events.setStatus(reportDone.id, 'done')
+markDoneOn(reportDone.id, addDays(today, -20), '16:00')
 const routineDone = events.create({
   calendar_id: byName('客运部会议日程'),
   kind: 'meeting',
@@ -244,7 +257,7 @@ const routineDone = events.create({
     { contact_id: zhang.id, name: '张经理' }
   ]
 })
-events.setStatus(routineDone.id, 'done')
+markDoneOn(routineDone.id, addDays(today, -12), '10:30')
 
 // 待办
 mk({
@@ -329,7 +342,78 @@ const doneEv = events.create({
   start_time: `${weekStart} 09:00`,
   end_time: `${weekStart} 18:00`
 })
-events.setStatus(doneEv.id, 'done')
+markDoneOn(doneEv.id, weekStart, '17:30')
+
+// 工作纲要演示(板块 09):本月/本周的已完成例行、对接、报告与会议
+const extraDoneDefs: Array<{
+  kind: 'task' | 'meeting'
+  cal: string
+  title: string
+  category: string
+  offset: number
+  description: string
+  contact?: number
+  location?: string
+}> = [
+  {
+    kind: 'task',
+    cal: '对接事项',
+    title: '韩亚航空换季计划对接确认',
+    category: '对接',
+    offset: -2,
+    contact: zhang.id,
+    description: '与韩亚航空确认冬春航季时刻与保障要求,更新对接台账'
+  },
+  {
+    kind: 'task',
+    cal: '报告提交',
+    title: '10月安全服务简报',
+    category: '报告',
+    offset: -1,
+    description: '汇总10月安全服务数据,形成月度简报报送质安部'
+  },
+  {
+    kind: 'task',
+    cal: '例行工作',
+    title: '办公物资需求统计',
+    category: '例行',
+    offset: -5,
+    description: '统计各岗位办公物资需求并提交综合部'
+  },
+  {
+    kind: 'task',
+    cal: '对接事项',
+    title: '双流机场保障资源确认',
+    category: '对接',
+    offset: -7,
+    contact: wang.id,
+    description: '与双流机场地服确认换季保障资源与联络人'
+  },
+  {
+    kind: 'meeting',
+    cal: '韩亚项目组',
+    title: '换季保障周例会',
+    category: '例会',
+    offset: -2,
+    description: '换季保障周例会,通报准备进度并协调待办',
+    location: '天府B216会议室'
+  }
+]
+for (const d of extraDoneDefs) {
+  const date = addDays(today, d.offset)
+  const row = events.create({
+    calendar_id: byName(d.cal),
+    kind: d.kind,
+    title: d.title,
+    category: d.category,
+    description: d.description,
+    contact_id: d.contact ?? null,
+    start_time: `${date} 09:30`,
+    end_time: `${date} ${d.kind === 'meeting' ? '10:30' : '18:00'}`,
+    location: d.location ?? ''
+  })
+  markDoneOn(row.id, date, d.kind === 'meeting' ? '10:30' : '17:00')
+}
 
 // 本月其他日期的事件(月/周视图与侧栏计数演示;均在当前周之外,不影响板块 02 汇总口径)
 // endOffset = null 表示无截止时间;默认当日 10:00 结束
@@ -606,6 +690,19 @@ const demoFileTotal = Object.values(demoFileCounts).reduce((a, b) => a + b, 0)
 
 // 汇总输出(供验收比对)
 const summary = computeSummary(events.list(), now)
+
+// 工作纲要演示口径(板块 09):当前月,实时时刻(已召开会议才算参与)
+const summaryRange = monthRange(today.slice(0, 7))
+const summaryNow = `${today} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+const contactNames = new Map(contacts.list().map((c) => [c.id, c.name]))
+const summaryContent = buildSummaryContent(
+  events.list(),
+  summaryRange,
+  summaryNow,
+  (id) => contactNames.get(id)
+)
+const demoSummaryStats = summaryStats(events.list(), summaryRange, summaryNow)
+
 const demo = {
   todayMeetings: summary.todayMeetings.length,
   nextAt: summary.nextMeeting ? summary.nextMeeting.start_time!.slice(11) : null,
@@ -626,7 +723,16 @@ const demo = {
   fileItems: demoFileTotal,
   fileBoardCounts: demoFileCounts,
   fileSearchHits: fileBoardsRepo.searchFileItems('换季').length,
-  fileDemoRoot: demoRoot
+  fileDemoRoot: demoRoot,
+  summaryTitle: rangeTitle(summaryRange),
+  summaryPeriod: rangeSpanText(summaryRange),
+  summaryStats: demoSummaryStats,
+  summarySections: summaryContent.sections.map((s) => ({
+    key: s.key,
+    title: s.title,
+    count: s.items.length,
+    titles: s.items.map((i) => i.title)
+  }))
 }
 console.log('DEMO_SUMMARY: ' + JSON.stringify(demo))
 
