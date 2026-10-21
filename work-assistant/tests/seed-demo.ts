@@ -13,6 +13,7 @@ import * as events from '../src/main/db/repositories/events'
 import * as reminders from '../src/main/db/repositories/reminders'
 import { fmtCn } from '../src/shared/reminder-text'
 import { addDays, computeSummary, fmtDate, startOfWeek } from '../src/renderer/src/utils/dashboard'
+import { buildTimeline } from '../src/renderer/src/utils/timeline'
 
 const dir = process.argv[2]
 if (!dir) {
@@ -213,6 +214,33 @@ mk({
   end_time: `${addDays(today, 10)} 11:00`
 })
 
+// 时间轴历史节点(板块 07:PRD 4.3 原型的已完成节点)
+const reportDone = events.create({
+  calendar_id: byName('报告提交'),
+  kind: 'task',
+  title: '月度报告提交',
+  category: '报告',
+  description: '上月工作汇总报告,含数据统计和下月计划',
+  start_time: `${addDays(today, -20)} 09:00`,
+  end_time: `${addDays(today, -20)} 10:00`
+})
+events.setStatus(reportDone.id, 'done')
+const routineDone = events.create({
+  calendar_id: byName('客运部会议日程'),
+  kind: 'meeting',
+  title: '部门例会',
+  category: '例会',
+  description: '每周四例行部门会议,汇报本周工作进展',
+  start_time: `${addDays(today, -12)} 09:30`,
+  end_time: `${addDays(today, -12)} 10:30`,
+  location: '天府B216会议室',
+  attendees: [
+    { contact_id: wang.id, name: '王主任' },
+    { contact_id: zhang.id, name: '张经理' }
+  ]
+})
+events.setStatus(routineDone.id, 'done')
+
 // 待办
 mk({
   calendar_id: byName('对接事项'),
@@ -257,6 +285,26 @@ mk({
   category: '协调',
   start_time: `${addDays(today, 4)} 10:00`,
   end_time: `${addDays(today, 4)} 18:00`
+})
+// PRD 4.3 原型节点(板块 07)
+mk({
+  calendar_id: byName('客运部会议日程'),
+  kind: 'meeting',
+  title: 'TV香港航空对接会',
+  category: '会议',
+  description: '与香港航空协调冬季航班时刻',
+  start_time: `${addDays(today, 1)} 10:00`,
+  end_time: `${addDays(today, 1)} 11:30`,
+  location: '线上会议'
+})
+mk({
+  calendar_id: byName('报告提交'),
+  kind: 'task',
+  title: '航班换季准备材料提交',
+  category: '报告',
+  description: '冬春航季换季全部准备材料汇总提交',
+  start_time: `${addDays(today, 4)} 09:00`,
+  end_time: `${addDays(today, 4)} 12:00`
 })
 // 已逾期的对接事项(对接催办汇总演示:应用启动后引擎每天触发一次催办提醒)
 mk({
@@ -343,7 +391,10 @@ const demo = {
   focus: summary.focusCount,
   contacts: contacts.list().length,
   contactGroups: grps.length,
-  reminderRows: reminders.listAll().length
+  reminderRows: reminders.listAll().length,
+  timelineNodes: buildTimeline(events.list(), fmtDate(now).slice(0, 7), fmtDate(now)).flatMap(
+    (g) => g.items
+  ).length
 }
 console.log('DEMO_SUMMARY: ' + JSON.stringify(demo))
 
