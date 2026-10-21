@@ -67,5 +67,11 @@ export const db = {
     list: (): Promise<Contact[]> => invoke(DB_ACTIONS.contactsList),
     create: (input: { name: string; department?: string; avatar_color?: string }): Promise<Contact> =>
       invoke(DB_ACTIONS.contactsCreate, input)
+  },
+  settings: {
+    get: (key: string, defaultValue?: string): Promise<string> =>
+      invoke(DB_ACTIONS.settingsGet, { key, defaultValue }),
+    set: (key: string, value: string): Promise<void> =>
+      invoke(DB_ACTIONS.settingsSet, { key, value })
   }
 }

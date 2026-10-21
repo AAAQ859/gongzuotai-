@@ -64,7 +64,9 @@ const visibleEvents = computed(() =>
   applyCalendarFilter(events.value, activeCalId.value, hiddenCalIds.value)
 )
 
-function toggleActive(cal: Calendar): void {
+function toggleActive(cal: Calendar, e?: MouseEvent): void {
+  // 阻止 label 默认行为向 checkbox 转发点击,否则点行会连带翻转可见性
+  e?.preventDefault()
   activeCalId.value = activeCalId.value === cal.id ? null : cal.id
 }
 
@@ -201,7 +203,7 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
           <span
             class="cal-side__body"
             :title="activeCalId === cal.id ? '点击取消只看该类' : '点击只看该类事项'"
-            @click="toggleActive(cal)"
+            @click="toggleActive(cal, $event)"
           >
             <span class="cal-side__dot" :style="{ background: cal.color }"></span>
             <span class="cal-side__name">{{ cal.name }}</span>

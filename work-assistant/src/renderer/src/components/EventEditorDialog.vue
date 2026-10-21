@@ -15,6 +15,8 @@ const props = defineProps<{
   event: WorkEvent | null
   /** 新增时的默认日期('YYYY-MM-DD') */
   defaultDate?: string
+  /** 新增时的默认类型(会议日历页传 'meeting') */
+  defaultKind?: EventKind
   calendars: Calendar[]
   contacts: Contact[]
   /** 已有分类标签(供下拉联想) */
@@ -79,7 +81,7 @@ function initForm(): void {
   const [d, t] = start.split(' ')
   const [h, m] = t.split(':').map(Number)
   const endHour = h + 1
-  form.kind = 'task'
+  form.kind = props.defaultKind ?? 'task'
   form.title = ''
   form.calendar_id = calendarOptions.value[0]?.value ?? null
   form.category = ''
@@ -156,7 +158,8 @@ async function submit(): Promise<void> {
       start_time: form.start_time || null,
       end_time: form.end_time || null,
       location: form.location.trim() || undefined,
-      attendees: form.kind === 'meeting' ? form.attendees : [],
+      // IPC 结构化克隆不接受 Vue reactive Proxy,须先转普通对象
+      attendees: form.kind === 'meeting' ? form.attendees.map((a) => ({ ...a })) : [],
       contact_id: form.kind === 'task' ? (contactId as number | null) : null,
       status: form.kind === 'task' ? form.status : undefined,
       description: form.description.trim() || undefined,

@@ -12,6 +12,8 @@ const props = defineProps<{
   modelValue: boolean
   calendars: Calendar[]
   events: WorkEvent[]
+  /** 只管理指定类型(会议日历页传 'meeting',新增时类型固定不可选) */
+  kindOnly?: 'schedule' | 'meeting'
 }>()
 
 const emit = defineEmits<{
@@ -30,7 +32,9 @@ const editingName = ref('')
 const busy = ref(false)
 
 const sorted = computed(() =>
-  [...props.calendars].sort((a, b) => (a.kind === b.kind ? a.id - b.id : a.kind === 'schedule' ? -1 : 1))
+  [...props.calendars]
+    .filter((c) => !props.kindOnly || c.kind === props.kindOnly)
+    .sort((a, b) => (a.kind === b.kind ? a.id - b.id : a.kind === 'schedule' ? -1 : 1))
 )
 
 function countOf(calId: number): number {
@@ -62,7 +66,11 @@ async function add(): Promise<void> {
   }
   busy.value = true
   try {
-    await db.calendars.create({ name, color: newColor.value, kind: newKind.value })
+    await db.calendars.create({
+      name,
+      color: newColor.value,
+      kind: props.kindOnly ?? newKind.value
+    })
     ElMessage.success('已添加日历')
     newName.value = ''
     emit('changed')
@@ -143,7 +151,7 @@ async function removeCal(cal: Calendar): Promise<void> {
         @keyup.enter="add"
       />
       <el-color-picker v-model="newColor" />
-      <el-radio-group v-model="newKind">
+      <el-radio-group v-if="!kindOnly" v-model="newKind">
         <el-radio-button value="schedule">我的日历</el-radio-button>
         <el-radio-button value="meeting">部门日历</el-radio-button>
       </el-radio-group>
