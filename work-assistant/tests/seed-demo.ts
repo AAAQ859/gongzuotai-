@@ -5,12 +5,17 @@
  * 幂等:播种前删除旧数据库文件,整体重建。
  * 用法:npm run demo:seed -- <数据目录>
  */
-import { existsSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import { dirname, resolve } from 'path'
+import AdmZip from 'adm-zip'
+import * as XLSX from 'xlsx'
 import { closeDatabase, dbFilePath, initDatabaseAt } from '../src/main/db/database'
+import * as fileBoardsRepo from '../src/main/db/repositories/boards'
 import * as calendars from '../src/main/db/repositories/calendars'
 import * as contacts from '../src/main/db/repositories/contacts'
 import * as events from '../src/main/db/repositories/events'
 import * as reminders from '../src/main/db/repositories/reminders'
+import { scanFolder } from '../src/main/files/extract'
 import { fmtCn } from '../src/shared/reminder-text'
 import { addDays, computeSummary, fmtDate, startOfWeek } from '../src/renderer/src/utils/dashboard'
 import { buildTimeline } from '../src/renderer/src/utils/timeline'
@@ -377,6 +382,228 @@ const dismissedOne = reminders.create({
 })
 reminders.dismiss(dismissedOne.id)
 
+// ---------- 文件板块演示数据(板块 08):真实文件夹 + 文件 + 索引 ----------
+// 板块对应本地文件夹,播种到 <数据目录>/demo-files 下,重启后仍可浏览与检索
+const demoRoot = resolve(dir, 'demo-files')
+rmSync(demoRoot, { recursive: true, force: true })
+
+function demoPath(rel: string): string {
+  const full = resolve(demoRoot, rel)
+  mkdirSync(dirname(full), { recursive: true })
+  return full
+}
+
+function writeText(rel: string, text: string): void {
+  writeFileSync(demoPath(rel), text, 'utf8')
+}
+
+function writeXlsx(rel: string, rows: string[][]): void {
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Sheet1')
+  XLSX.writeFile(wb, demoPath(rel))
+}
+
+function escapeXml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** 生成最小可用 docx(仅正文段落),供 docx 正文提取链路演示 */
+function writeDocx(rel: string, paragraphs: string[]): void {
+  const zip = new AdmZip()
+  zip.addFile(
+    '[Content_Types].xml',
+    Buffer.from(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+        '</Types>'
+    )
+  )
+  zip.addFile(
+    '_rels/.rels',
+    Buffer.from(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+        '</Relationships>'
+    )
+  )
+  const body = paragraphs
+    .map((p) => `<w:p><w:r><w:t xml:space="preserve">${escapeXml(p)}</w:t></w:r></w:p>`)
+    .join('')
+  zip.addFile(
+    'word/document.xml',
+    Buffer.from(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+        `<w:body>${body}</w:body></w:document>`
+    )
+  )
+  zip.writeZip(demoPath(rel))
+}
+
+/** 仅用于列表展示的占位 PDF(内容检索不解析 PDF) */
+function writePdf(rel: string, title: string): void {
+  writeText(
+    rel,
+    `%PDF-1.4\n% 工作台助手演示文件:${title}\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n` +
+      '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+      '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]>>endobj\n' +
+      'trailer<</Root 1 0 R>>\n%%EOF\n'
+  )
+}
+
+// 客运部工作
+writeText(
+  '客运部工作/月度报告/1月工作月报.md',
+  '# 1月工作月报\n\n本月完成冬春航季换季准备、部门例会组织与月度安全报告提交。\n下月重点:航班换季保障、人员排班优化。\n'
+)
+writeText(
+  '客运部工作/月度报告/2月工作月报.md',
+  '# 2月工作月报\n\n完成春运保障复盘,整理旅客服务改进建议 6 条。\n'
+)
+writeText(
+  '客运部工作/例会纪要/周例会纪要-第38周.md',
+  '周例会纪要\n时间:周四 09:30\n地点:天府B216会议室\n议题:本周工作进展、换季准备情况、下周计划。\n'
+)
+writeXlsx('客运部工作/2024冬春换季/换季航班计划表.xlsx', [
+  ['航班号', '航线', '换季日期', '机型'],
+  ['TV9811', '成都—香港', '2024-10-27', 'A319'],
+  ['TV9823', '成都—首尔', '2024-10-27', 'A320'],
+  ['TV9866', '成都—曼谷', '2024-10-28', 'A321']
+])
+writeText(
+  '客运部工作/2024冬春换季/换季工作检查单.csv',
+  '序号,检查项,负责人,完成情况\n1,航班时刻核对,王主任,已完成\n2,机组排班确认,张经理,进行中\n3,地面保障对接,李工,已完成\n'
+)
+writeDocx('客运部工作/部门工作制度.docx', [
+  '客运部工作制度',
+  '本制度适用于客运部全体人员,自发布之日起执行。',
+  '一、例会管理:每周四召开部门例会,遇航班换季另行安排专题会。',
+  '二、文件管理:工作文件统一归档到部门文件板块,按项目与月份分类。'
+])
+writeXlsx('客运部工作/人员通讯录.xlsx', [
+  ['姓名', '部门', '职位', '电话'],
+  ['王主任', '综合部', '综合办主任', '135-0000-9012'],
+  ['张经理', '国际部', '国际事务经理', '139-0000-5678'],
+  ['李工', '质安部', '质量主管', '138-0000-1234']
+])
+writePdf('客运部工作/岗位操作手册.pdf', '岗位操作手册')
+writeText(
+  '客运部工作/换季工作总结.txt',
+  '2024冬春换季工作总结\n\n本次换季共调整航班 18 班,完成时刻核对、机组排班与地面保障对接。\n存在问题:部分航线资料回收不及时,后续建立催办清单。\n'
+)
+writeText(
+  '客运部工作/值班安排表.csv',
+  '日期,值班人员,联系电话\n周一,王主任,135-0000-9012\n周二,张经理,139-0000-5678\n'
+)
+
+// 韩亚项目
+writeXlsx('韩亚项目/韩亚航班计划.xlsx', [
+  ['航班号', '航线', '班期', '换季调整'],
+  ['OZ323', '成都—首尔', '每日', '冬春航季加密至每日两班'],
+  ['OZ324', '首尔—成都', '每日', '时刻提前 20 分钟']
+])
+writeText(
+  '韩亚项目/合作协议要点.md',
+  '# 韩亚项目合作协议要点\n\n- 对接人:朴经理(驻站代表)、金科长(运控部)\n- 协调机制:每周一次线上协调会\n- 换季期间每日通报航班执行情况\n'
+)
+writeText(
+  '韩亚项目/对接联系人清单.csv',
+  '姓名,单位,职位,电话\n朴经理,韩亚航空,驻站代表,136-0000-3456\n金科长,韩亚航空,运控部,137-0000-7890\n'
+)
+writeDocx('韩亚项目/韩亚协调会纪要.docx', [
+  '韩亚协调会纪要',
+  '时间:本周二 14:00,线上会议。',
+  '议题:冬春换季航班计划、文审材料提交、异常航班协调流程。',
+  '结论:换季计划按韩亚总部批复执行,文审材料于月底前提交。'
+])
+
+// 双流机场
+writeDocx('双流机场/双流机场对接纪要.docx', [
+  '双流机场对接纪要',
+  '与机场地服部张主任对接行李保障与特殊旅客服务流程。',
+  '下一步:完善综保区货运对接清单。'
+])
+writeText(
+  '双流机场/地服保障流程.txt',
+  '双流机场地服保障流程\n1. 航班落地前 30 分钟确认机位\n2. 行李分拣与转运\n3. 特殊旅客交接\n'
+)
+writeText(
+  '双流机场/2026年度时刻协调说明.md',
+  '# 2026年度时刻协调说明\n\n按机场时刻管理要求,提交年度航班时刻需求与换季调整方案。\n'
+)
+
+// 年度工作
+writeText(
+  '年度工作/年度工作总结大纲.md',
+  '# 年度工作总结大纲\n\n一、年度重点工作完成情况\n二、换季保障与安全质量\n三、存在问题与改进措施\n四、下一年度工作计划\n'
+)
+writeXlsx('年度工作/年度重点工作清单.xlsx', [
+  ['序号', '重点工作', '牵头人', '完成情况'],
+  ['1', '冬春航季换季保障', '王主任', '进行中'],
+  ['2', '服务质量提升专项', '李工', '已完成']
+])
+
+// 安全质量
+writeText(
+  '安全质量/安全检查记录.csv',
+  '日期,检查区域,问题描述,整改情况\n2026-10-08,值机区,标识不清,已整改\n2026-10-15,行李分拣区,通道占用,整改中\n'
+)
+writeXlsx('安全质量/安全培训签到表.xlsx', [
+  ['姓名', '培训主题', '签到日期'],
+  ['王主任', '换季安全运行', '2026-10-10'],
+  ['李工', '换季安全运行', '2026-10-10']
+])
+
+// 培训学习
+writeText(
+  '培训学习/企业微信使用指南.md',
+  '# 企业微信使用指南\n\n1. 加入部门群与项目群\n2. 使用日程与会议功能\n3. 文件在群内共享后归档到文件板块\n'
+)
+writeText(
+  '培训学习/培训计划.txt',
+  '第四季度培训计划\n- 换季业务培训(10月)\n- 安全规章复训(11月)\n- 服务技能提升(12月)\n'
+)
+
+// 会议纪要
+writeText(
+  '会议纪要/2024冬春换季协调会纪要.md',
+  '# 2024冬春换季协调会纪要\n\n时间:10月15日 14:00\n参会:客运部、韩亚项目组、双流机场地服部\n议题:换季航班计划、保障资源、应急预案\n结论:按换季计划执行,建立每日通报机制。\n'
+)
+writeDocx('会议纪要/部门例会纪要.docx', [
+  '部门例会纪要',
+  '本周完成换季准备材料汇总,下周进入换季运行保障阶段。',
+  '各岗位按值班表落实,异常情况及时上报。'
+])
+
+interface DemoBoardDef {
+  name: string
+  folder: string
+  icon: string
+}
+const demoBoardDefs: DemoBoardDef[] = [
+  { name: '客运部工作', folder: '客运部工作', icon: '📋' },
+  { name: '韩亚项目', folder: '韩亚项目', icon: '✈️' },
+  { name: '双流机场', folder: '双流机场', icon: '🏢' },
+  { name: '年度工作', folder: '年度工作', icon: '📊' },
+  { name: '安全质量', folder: '安全质量', icon: '🛡️' },
+  { name: '培训学习', folder: '培训学习', icon: '🎓' },
+  { name: '会议纪要', folder: '会议纪要', icon: '📑' }
+]
+const demoBoards = demoBoardDefs.map((def) => {
+  const root = resolve(demoRoot, def.folder)
+  mkdirSync(root, { recursive: true })
+  const board = fileBoardsRepo.create({ name: def.name, root_path: root, icon: def.icon })
+  const scanned = scanFolder(root)
+  fileBoardsRepo.replaceFileItems(board.id, scanned.items)
+  return board
+})
+const demoFileCounts = fileBoardsRepo.countsByBoard()
+const demoFileTotal = Object.values(demoFileCounts).reduce((a, b) => a + b, 0)
+
 // 汇总输出(供验收比对)
 const summary = computeSummary(events.list(), now)
 const demo = {
@@ -394,7 +621,12 @@ const demo = {
   reminderRows: reminders.listAll().length,
   timelineNodes: buildTimeline(events.list(), fmtDate(now).slice(0, 7), fmtDate(now)).flatMap(
     (g) => g.items
-  ).length
+  ).length,
+  fileBoards: demoBoards.length,
+  fileItems: demoFileTotal,
+  fileBoardCounts: demoFileCounts,
+  fileSearchHits: fileBoardsRepo.searchFileItems('换季').length,
+  fileDemoRoot: demoRoot
 }
 console.log('DEMO_SUMMARY: ' + JSON.stringify(demo))
 

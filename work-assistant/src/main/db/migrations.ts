@@ -187,5 +187,15 @@ ALTER TABLE contacts ADD COLUMN kind TEXT NOT NULL DEFAULT 'person';
 ALTER TABLE contacts ADD COLUMN member_count INTEGER;
 ALTER TABLE contacts ADD COLUMN purpose TEXT NOT NULL DEFAULT '';
 `
+  },
+  {
+    version: 5,
+    name: 'file-item-content',
+    // 板块 08 文件板块:文件索引带正文文本,支持跨板块按内容检索
+    // (txt/md/csv/json 等文本 + xlsx 单元格 + docx 正文;PDF 仅按文件名)
+    up: `
+ALTER TABLE file_items ADD COLUMN content TEXT NOT NULL DEFAULT '';
+CREATE INDEX idx_file_items_board_path ON file_items(board_id, relative_path);
+`
   }
 ]

@@ -9,6 +9,11 @@ import * as reminderEngine from './reminders/engine'
 if (process.env.SCREENSHOT_USERDATA) {
   app.setPath('userData', process.env.SCREENSHOT_USERDATA)
 }
+// 截图验收时可将「文档」目录也指向隔离位置(SCREENSHOT_DOCUMENTS),
+// 避免新建板块的默认文件夹写入真实 文档\工作台助手
+if (process.env.SCREENSHOT_DOCUMENTS) {
+  app.setPath('documents', process.env.SCREENSHOT_DOCUMENTS)
+}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({

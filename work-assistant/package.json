@@ -18,17 +18,20 @@
     "test:reminder": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs reminder-tests.js",
     "test:timeline": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs timeline-tests.js",
     "test:ui-scale": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs ui-scale-tests.js",
+    "test:files": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs files-tests.js",
     "demo:seed": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs seed-demo.js",
     "start": "node scripts/run.mjs electron-vite preview"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "adm-zip": "^0.6.1",
     "element-plus": "^2.14.7",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^26.6.5",
     "@vitejs/plugin-vue": "^6.0.10",
     "electron": "^44.9.1",

@@ -18,6 +18,7 @@
   },
   "include": [
     "src/main/db/**/*",
+    "src/main/files/extract.ts",
     "src/main/reminders/**/*",
     "src/shared/**/*",
     "src/renderer/src/utils/**/*",

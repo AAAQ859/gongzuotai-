@@ -4,6 +4,7 @@ import { extname } from 'node:path'
 import * as XLSX from 'xlsx'
 import { DatabaseSync } from 'node:sqlite'
 import type { DbResult, DbStatus } from '@shared/types'
+import type { FilesResult } from '@shared/files'
 import { dbFilePath, schemaVersion } from './db/database'
 import * as calendarsRepo from './db/repositories/calendars'
 import * as eventsRepo from './db/repositories/events'
@@ -12,6 +13,7 @@ import * as boardsRepo from './db/repositories/boards'
 import * as remindersRepo from './db/repositories/reminders'
 import * as settingsRepo from './db/repositories/settings'
 import * as reminderEngine from './reminders/engine'
+import * as filesService from './files/service'
 
 type Handler = (payload: unknown) => unknown
 
@@ -103,10 +105,23 @@ const handlers: Record<string, Handler> = {
 
   // ---------- 文件板块 ----------
   'boards.list': () => boardsRepo.list(),
-  'boards.create': (p) => boardsRepo.create(p as Parameters<typeof boardsRepo.create>[0]),
+  'boards.create': (p) => {
+    // 板块即本地文件夹:未指定位置时在「文档\工作台助手\板块名」自动创建并回填 root_path;
+    // 创建失败(无权限等)则回滚板块记录,避免出现没有落盘目录的空板块
+    const row = boardsRepo.create(p as Parameters<typeof boardsRepo.create>[0])
+    try {
+      filesService.ensureBoardRoot(row.id)
+    } catch (err) {
+      boardsRepo.remove(row.id)
+      throw err
+    }
+    return boardsRepo.get(row.id)
+  },
   'boards.update': (p) => {
-    const { id, ...patch } = p as { id: number }
-    return boardsRepo.update(id, patch)
+    const { id, ...patch } = p as { id: number } & Parameters<typeof boardsRepo.update>[1]
+    const row = boardsRepo.update(id, patch)
+    if (patch.root_path !== undefined) filesService.ensureBoardRoot(id)
+    return row
   },
   'boards.remove': (p) => boardsRepo.remove((p as { id: number }).id),
 
@@ -132,6 +147,10 @@ const handlers: Record<string, Handler> = {
   'settings.all': () => settingsRepo.all()
 }
 
+function errText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 export function registerIpc(): void {
   ipcMain.handle('db:invoke', (_event, action: string, payload?: unknown): DbResult => {
     try {
@@ -139,9 +158,152 @@ export function registerIpc(): void {
       if (!handler) return { ok: false, error: `未知操作: ${action}` }
       return { ok: true, data: handler(payload) }
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      return { ok: false, error: errText(err) }
     }
   })
+
+  // ---------- 文件板块(板块 08):板块=本地文件夹 ----------
+  ipcMain.handle('files.defaultRoot', (): FilesResult<{ root: string }> => {
+    return { ok: true, data: { root: filesService.defaultRootDir() } }
+  })
+
+  ipcMain.handle(
+    'files.list',
+    (_event, p: { boardId: number; path?: string }): FilesResult<{ dir: string; entries: unknown[] }> => {
+      try {
+        return { ok: true, data: filesService.listDir(p.boardId, p.path ?? '') }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  ipcMain.handle('files.scan', (_event, p: { boardId: number }): FilesResult<{ files: number; folders: number }> => {
+    try {
+      return { ok: true, data: filesService.scanBoard(p.boardId) }
+    } catch (err) {
+      return { ok: false, error: errText(err) }
+    }
+  })
+
+  ipcMain.handle(
+    'files.scanAll',
+    (): FilesResult<{ counts: Record<number, number>; errors: string[] }> => {
+      try {
+        const errors: string[] = []
+        for (const b of boardsRepo.list()) {
+          try {
+            filesService.scanBoard(b.id)
+          } catch (err) {
+            errors.push(`${b.name}: ${errText(err)}`)
+          }
+        }
+        return { ok: true, data: { counts: boardsRepo.countsByBoard(), errors } }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  ipcMain.handle('files.counts', (): FilesResult<Record<number, number>> => {
+    try {
+      return { ok: true, data: boardsRepo.countsByBoard() }
+    } catch (err) {
+      return { ok: false, error: errText(err) }
+    }
+  })
+
+  ipcMain.handle(
+    'files.createFolder',
+    (_event, p: { boardId: number; path?: string; name: string }): FilesResult<null> => {
+      try {
+        filesService.createFolder(p.boardId, p.path ?? '', p.name)
+        return { ok: true, data: null }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'files.upload',
+    async (
+      _event,
+      p: { boardId: number; path?: string }
+    ): Promise<FilesResult<{ copied: number } | null>> => {
+      try {
+        return { ok: true, data: await filesService.pickAndUpload(p.boardId, p.path ?? '') }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'files.copyPaths',
+    (_event, p: { boardId: number; path?: string; paths: string[] }): FilesResult<{ copied: number }> => {
+      try {
+        return { ok: true, data: filesService.copyFiles(p.boardId, p.path ?? '', p.paths ?? []) }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'files.open',
+    async (_event, p: { boardId: number; path: string }): Promise<FilesResult<null>> => {
+      try {
+        const res = await filesService.openFile(p.boardId, p.path)
+        return res.ok ? { ok: true, data: null } : { ok: false, error: res.error }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'files.reveal',
+    (_event, p: { boardId: number; path: string }): FilesResult<null> => {
+      try {
+        const res = filesService.revealFile(p.boardId, p.path)
+        return res.ok ? { ok: true, data: null } : { ok: false, error: res.error }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'files.openBoardFolder',
+    async (_event, p: { boardId: number }): Promise<FilesResult<null>> => {
+      try {
+        const err = await shell.openPath(filesService.ensureBoardRoot(p.boardId))
+        return err ? { ok: false, error: err } : { ok: true, data: null }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
+
+  ipcMain.handle('files.search', (_event, p: { query: string }): FilesResult<unknown[]> => {
+    try {
+      return { ok: true, data: filesService.search(p.query ?? '') }
+    } catch (err) {
+      return { ok: false, error: errText(err) }
+    }
+  })
+
+  ipcMain.handle(
+    'files.pickFolder',
+    async (_event, p: { defaultPath?: string }): Promise<FilesResult<string | null>> => {
+      try {
+        return { ok: true, data: await filesService.pickFolder(p?.defaultPath) }
+      } catch (err) {
+        return { ok: false, error: errText(err) }
+      }
+    }
+  )
 
   // ---------- 系统集成 ----------
   // 拨号:仅允许 tel: 协议唤起系统电话软件(用户确认的设计);其他协议一律拒绝

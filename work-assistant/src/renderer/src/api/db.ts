@@ -10,6 +10,7 @@ import type {
   DbAction,
   EventKind,
   EventStatus,
+  FileBoard,
   Reminder,
   WorkEvent
 } from '@shared/types'
@@ -126,6 +127,14 @@ export const db = {
     update: (id: number, patch: Partial<Pick<ContactGroup, 'name' | 'icon'>>): Promise<ContactGroup> =>
       invoke(DB_ACTIONS.groupsUpdate, { id, ...patch }),
     remove: (id: number): Promise<void> => invoke(DB_ACTIONS.groupsRemove, { id })
+  },
+  boards: {
+    list: (): Promise<FileBoard[]> => invoke(DB_ACTIONS.boardsList),
+    create: (input: { name: string; root_path?: string; icon?: string; color?: string }): Promise<FileBoard> =>
+      invoke(DB_ACTIONS.boardsCreate, input),
+    update: (id: number, patch: Partial<Pick<FileBoard, 'name' | 'root_path' | 'icon' | 'color'>>): Promise<FileBoard> =>
+      invoke(DB_ACTIONS.boardsUpdate, { id, ...patch }),
+    remove: (id: number): Promise<void> => invoke(DB_ACTIONS.boardsRemove, { id })
   },
   reminders: {
     /** 尚未触发的提醒(可按时刻过滤,提醒中心待触发 tab) */
