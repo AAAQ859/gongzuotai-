@@ -8,6 +8,7 @@ import {
   filterContacts,
   followupOf,
   parseContactsCsv,
+  parseContactsRows,
   parseCsvLine,
   sortContacts
 } from '../src/renderer/src/utils/contacts'
@@ -107,6 +108,22 @@ check('无表头按列序解析 2 行', nh.rows.length === 2)
 check('列序:姓名/部门/职位/电话/微信/邮箱/备注', nh.rows[0].name === '王主任' && nh.rows[0].wechat === 'wang' && nh.rows[0].email === '')
 check('第二行邮箱/备注', nh.rows[1].email === 'cui@example.com' && nh.rows[1].phone === '13600002222')
 check('英文表头兼容', parseContactsCsv('Name,Department\nAlice,QA').rows[0].name === 'Alice')
+
+console.log('【3.5】Excel 表格网格解析(与 CSV 共用语义层)')
+const xlsxGrid: (string | number)[][] = [
+  ['姓名', '部门', '职位', '电话', '微信', '邮箱', '备注'],
+  ['李工', '质安部', '质量主管', 13800001234, 'ligong', 'li@example.com', '负责Q3数据'],
+  ['朴经理', '韩亚航空', '驻站代表', 13900005678, '', '', ''],
+  ['', '缺少姓名行', '', '', '', '', '']
+]
+const xg = parseContactsRows(xlsxGrid)
+check('Excel 表头网格解析 2 行', xg.rows.length === 2)
+check('单元格取值与缺列补空', xg.rows[0].name === '李工' && xg.rows[0].phone === '13800001234' && xg.rows[1].wechat === '' && xg.rows[1].email === '')
+check('缺姓名行报第 4 行', xg.errors.length === 1 && /第 4 行/.test(xg.errors[0]))
+check('无表头网格按固定列序', parseContactsRows([['王主任', '综合部', '', '13500001111']]).rows[0].phone === '13500001111')
+check('数字单元格转字符串', parseContactsRows([['姓名', '电话'], ['李工', 13800009999]]).rows[0].phone === '13800009999')
+check('空网格报文件为空', parseContactsRows([]).errors[0] === '文件为空')
+check('英文表头网格兼容', parseContactsRows([['Name', 'Department'], ['Alice', 'QA']]).rows[0].name === 'Alice')
 
 console.log('【4】待跟进联动与截止文案')
 const NOW = new Date(2026, 9, 21, 10, 0) // 2026-10-21 周三

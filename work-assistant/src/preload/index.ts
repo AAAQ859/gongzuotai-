@@ -11,12 +11,16 @@ const api = {
       ipcRenderer.invoke('db:invoke', action, payload)
   } satisfies DbApi,
 
-  /** 系统集成:拨号(仅 tel: 协议)与通讯录 CSV 导入 */
+  /** 系统集成:拨号(仅 tel: 协议)与通讯录 Excel/CSV 导入 */
   shell: {
     openExternal: (url: string): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('shell:openExternal', url),
-    pickCsv: (): Promise<{ path: string; content: string } | null> =>
-      ipcRenderer.invoke('file:pickCsv')
+    pickImportFile: (): Promise<{ path: string; name: string } | null> =>
+      ipcRenderer.invoke('file:pickImportFile'),
+    readImportFile: (
+      filePath: string
+    ): Promise<{ kind: 'xlsx' | 'csv'; raw: string | string[][] }> =>
+      ipcRenderer.invoke('file:readImportFile', filePath)
   }
 }
 

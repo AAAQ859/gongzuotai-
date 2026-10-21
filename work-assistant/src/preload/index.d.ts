@@ -5,7 +5,10 @@ export interface Api {
   db: DbApi
   shell: {
     openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>
-    pickCsv: () => Promise<{ path: string; content: string } | null>
+    pickImportFile: () => Promise<{ path: string; name: string } | null>
+    readImportFile: (
+      filePath: string
+    ) => Promise<{ kind: 'xlsx' | 'csv'; raw: string | string[][] }>
   }
 }
 

@@ -1,5 +1,5 @@
 /**
- * 联络接口纯计算逻辑:CSV 导入解析、分组/类型/待跟进筛选与排序、对接事项联动。
+ * 联络接口纯计算逻辑:通讯录导入解析(Excel 网格与 CSV 共用)、分组/类型/待跟进筛选与排序、对接事项联动。
  * 不依赖 DOM / 数据库,可在测试中独立验证(见 tests/contacts-tests.ts)。
  * 数据口径:通讯录同时容纳个人联系人与群组记录(PRD 4.6),二者同表、以 kind 区分。
  */
@@ -50,15 +50,16 @@ export function parseCsvLine(line: string): string[] {
 }
 
 /**
- * 解析通讯录 CSV:首行可为表头(按列名识别,兼容 姓名/名称/name 等),
+ * 解析通讯录表格网格(CSV 与 Excel 共用):首行可为表头(按列名识别,兼容 姓名/名称/name 等),
  * 无表头时按固定列序 姓名,部门,职位,电话,微信,邮箱,备注。缺姓名的行跳过并记录错误。
  */
-export function parseContactsCsv(text: string): { rows: CsvContact[]; errors: string[] } {
+export function parseContactsRows(grid: (string | number)[][]): { rows: CsvContact[]; errors: string[] } {
   const errors: string[] = []
-  const lines = text.split(/\r?\n/)
-  if (!lines.length || !lines.some((l) => l.trim())) return { rows: [], errors: ['文件为空'] }
+  if (!grid.length || !grid.some((r) => r.some((c) => String(c).trim()))) {
+    return { rows: [], errors: ['文件为空'] }
+  }
 
-  const header = parseCsvLine(lines[0])
+  const header = grid[0].map((c) => String(c ?? '').trim())
   const hasHeader = header.some((h) => /姓名|名称|name/i.test(h))
   const col = (patterns: RegExp): number => (hasHeader ? header.findIndex((h) => patterns.test(h)) : -1)
   const idx = hasHeader
@@ -74,25 +75,30 @@ export function parseContactsCsv(text: string): { rows: CsvContact[]; errors: st
     : { name: 0, dept: 1, pos: 2, phone: 3, wechat: 4, email: 5, remark: 6 }
 
   const rows: CsvContact[] = []
-  lines.slice(hasHeader ? 1 : 0).forEach((line, i) => {
-    if (!line.trim()) return
-    const cells = parseCsvLine(line)
-    const name = (idx.name >= 0 ? cells[idx.name] ?? '' : '').trim()
+  grid.slice(hasHeader ? 1 : 0).forEach((cells, i) => {
+    if (!cells.some((c) => String(c).trim())) return
+    const cell = (n: number): string => (n >= 0 && n < cells.length ? String(cells[n] ?? '').trim() : '')
+    const name = cell(idx.name)
     if (!name) {
       errors.push(`第 ${i + (hasHeader ? 2 : 1)} 行缺少姓名,已跳过`)
       return
     }
     rows.push({
       name,
-      department: (idx.dept >= 0 ? cells[idx.dept] ?? '' : '').trim(),
-      position: (idx.pos >= 0 ? cells[idx.pos] ?? '' : '').trim(),
-      phone: (idx.phone >= 0 ? cells[idx.phone] ?? '' : '').trim(),
-      wechat: (idx.wechat >= 0 ? cells[idx.wechat] ?? '' : '').trim(),
-      email: (idx.email >= 0 ? cells[idx.email] ?? '' : '').trim(),
-      remark: (idx.remark >= 0 ? cells[idx.remark] ?? '' : '').trim()
+      department: cell(idx.dept),
+      position: cell(idx.pos),
+      phone: cell(idx.phone),
+      wechat: cell(idx.wechat),
+      email: cell(idx.email),
+      remark: cell(idx.remark)
     })
   })
   return { rows, errors }
+}
+
+/** 解析通讯录 CSV 文本:先按行拆分为网格,再走 parseContactsRows(与 Excel 共用语义解析) */
+export function parseContactsCsv(text: string): { rows: CsvContact[]; errors: string[] } {
+  return parseContactsRows(text.split(/\r?\n/).map((l) => parseCsvLine(l)))
 }
 
 // ============ 待跟进联动(PRD 4.6 智能联动) ============

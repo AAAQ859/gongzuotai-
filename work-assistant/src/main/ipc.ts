@@ -1,5 +1,7 @@
 import { app, dialog, ipcMain, shell } from 'electron'
 import { readFileSync } from 'node:fs'
+import { extname } from 'node:path'
+import * as XLSX from 'xlsx'
 import { DatabaseSync } from 'node:sqlite'
 import type { DbResult, DbStatus } from '@shared/types'
 import { dbFilePath, schemaVersion } from './db/database'
@@ -143,18 +145,48 @@ export function registerIpc(): void {
     }
   })
 
-  // 通讯录导入:选择 CSV 文件并读回内容(渲染层解析,解析逻辑可单测)
+  // 通讯录导入:选择 Excel/CSV 文件(仅选文件,内容由 file:readImportFile 读取解析)
   ipcMain.handle(
-    'file:pickCsv',
-    async (): Promise<{ path: string; content: string } | null> => {
+    'file:pickImportFile',
+    async (): Promise<{ path: string; name: string } | null> => {
       const picked = await dialog.showOpenDialog({
-        title: '选择通讯录 CSV 文件',
+        title: '选择通讯录文件',
         properties: ['openFile'],
-        filters: [{ name: 'CSV 文件', extensions: ['csv', 'txt'] }]
+        filters: [
+          { name: 'Excel 文件', extensions: ['xlsx', 'xls'] },
+          { name: 'CSV 文件', extensions: ['csv', 'txt'] }
+        ]
       })
       if (picked.canceled || !picked.filePaths.length) return null
       const path = picked.filePaths[0]
-      return { path, content: readFileSync(path, 'utf8') }
+      return { path, name: path.split(/[\\/]/).pop() ?? path }
+    }
+  )
+
+  // 通讯录导入:读取并解析为表格网格。
+  // - .xlsx/.xls:SheetJS 解析首个工作表,统一转字符串单元格(日期/数字原样取值)
+  // - .csv/.txt:UTF-8 文本原样返回,由渲染层纯逻辑解析(可单测)
+  ipcMain.handle(
+    'file:readImportFile',
+    async (
+      _event,
+      filePath: string
+    ): Promise<{ kind: 'xlsx' | 'csv'; raw: string | string[][] }> => {
+      const ext = extname(filePath).toLowerCase()
+      if (ext === '.xlsx' || ext === '.xls') {
+        const wb = XLSX.read(readFileSync(filePath), { type: 'buffer' })
+        const sheet = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+          header: 1,
+          raw: false,
+          defval: ''
+        })
+        return { kind: 'xlsx', raw: rows.map((r) => r.map((c) => String(c ?? '').trim())) }
+      }
+      // 其余扩展名按 CSV 文本处理
+      let text = readFileSync(filePath, 'utf8')
+      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
+      return { kind: 'csv', raw: text }
     }
   )
 }
