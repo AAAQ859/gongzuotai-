@@ -156,11 +156,27 @@ export function registerIpc(): void {
     }
   })
 
-  // 测试提醒:立即弹一条系统通知(设置页「测试通知」按钮)
-  ipcMain.handle('shell:testNotification', async (): Promise<{ ok: boolean; error?: string }> => {
+  // 测试提醒(设置页「测试通知」按钮):系统通知 + 应用内通知双通道。
+  // 系统 toast 可能被 Windows「勿扰/专注助手」或该应用通知设置抑制(仅进通知中心不弹横幅),
+  // 应用内通知保证用户始终能看到一次可见反馈。
+  ipcMain.handle('shell:testNotification', async (event): Promise<{ ok: boolean; system: boolean; error?: string }> => {
+    const title = '🔔 测试通知'
+    const body = '工作台助手提醒功能正常'
     try {
-      if (!Notification.isSupported()) return { ok: false, error: '当前系统不支持通知' }
-      new Notification({ title: '🔔 测试通知', body: '工作台助手提醒功能正常' }).show()
+      const supported = Notification.isSupported()
+      if (supported) new Notification({ title, body }).show()
+      event.sender.send('app:in-app-notify', { title, body, route: null })
+      return { ok: true, system: supported }
+    } catch (err) {
+      return { ok: false, system: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // 打开 Windows 通知设置(设置页诊断提示;仅 win32)
+  ipcMain.handle('shell:openNotificationSettings', async (): Promise<{ ok: boolean; error?: string }> => {
+    if (process.platform !== 'win32') return { ok: false, error: '仅 Windows 支持打开通知设置' }
+    try {
+      await shell.openExternal('ms-settings:notifications')
       return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }

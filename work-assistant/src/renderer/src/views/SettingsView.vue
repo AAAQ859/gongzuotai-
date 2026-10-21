@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import type { DbStatus } from '@shared/types'
 import { DB_ACTIONS } from '@shared/types'
 import { db } from '@/api/db'
@@ -78,13 +78,27 @@ async function testNotification(): Promise<void> {
   try {
     const res = await window.api.shell.testNotification()
     if (res.ok) {
-      ElMessage.success('测试通知已弹出,请留意屏幕右下角')
+      if (res.system) {
+        ElMessage({
+          message:
+            '已发送系统通知与应用内通知。若没有看到系统弹窗,请检查 Windows「专注助手/勿扰」或该应用的通知设置。',
+          type: 'info',
+          duration: 6000
+        })
+      } else {
+        ElMessage.warning('当前系统不支持通知,已弹出应用内提示')
+      }
     } else {
-      ElMessage.warning(res.error ?? '当前系统不支持通知')
+      ElMessage.warning(res.error ?? '通知发送失败')
     }
   } finally {
     testing.value = false
   }
+}
+
+async function openNotificationSettings(): Promise<void> {
+  const res = await window.api.shell.openNotificationSettings()
+  if (!res.ok) ElMessage.warning(res.error ?? '无法打开系统通知设置')
 }
 </script>
 
@@ -152,12 +166,20 @@ async function testNotification(): Promise<void> {
       </div>
       <div class="settings-row">
         <span class="settings-label">系统通知</span>
-        <el-button size="small" :loading="testing" @click="testNotification">
-          发送测试通知
-        </el-button>
+        <div class="settings-actions">
+          <el-button size="small" :loading="testing" @click="testNotification">
+            发送测试通知
+          </el-button>
+          <el-button size="small" link @click="openNotificationSettings">
+            打开 Windows 通知设置
+          </el-button>
+        </div>
       </div>
       <div class="settings-hint">
         单个会议可在编辑器中单独指定提前量;未单独指定的会议按上方设置提醒。事项的截止提醒只在编辑事项时单独开启。
+        <br />
+        若点「发送测试通知」看不到系统弹窗:Windows 11 可能开启了「专注助手/勿扰」,或把系统通知设为「仅通知中心」——
+        此时应用内仍会弹出通知,提醒不会丢失;可点上方「打开 Windows 通知设置」检查。
       </div>
     </el-card>
 
@@ -229,6 +251,12 @@ async function testNotification(): Promise<void> {
 .settings-label {
   color: var(--wa-text-muted);
   flex-shrink: 0;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .settings-mono {

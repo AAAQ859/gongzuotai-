@@ -111,6 +111,9 @@ const NAV_BY_TYPE: Record<string, string> = {
 let getWin: (() => BrowserWindow | null) | null = null
 
 function showNotification(title: string, body: string, type: string, eventId: number | null): void {
+  const route = NAV_BY_TYPE[type] ?? '#/reminders'
+  // 应用内通知兜底:系统 toast 被「勿扰/专注助手」或应用通知设置抑制时,窗口内仍可见
+  getWin?.()?.webContents.send('app:in-app-notify', { title, body, route })
   if (!Notification.isSupported()) {
     console.log('[reminder] Notification unsupported, skip toast')
     return
@@ -122,7 +125,7 @@ function showNotification(title: string, body: string, type: string, eventId: nu
       if (win.isMinimized()) win.restore()
       win.show()
       win.focus()
-      win.webContents.send('app:navigate', NAV_BY_TYPE[type] ?? '#/reminders')
+      win.webContents.send('app:navigate', route)
     }
   })
   n.show()

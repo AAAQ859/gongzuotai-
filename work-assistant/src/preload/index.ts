@@ -21,8 +21,10 @@ const api = {
       filePath: string
     ): Promise<{ kind: 'xlsx' | 'csv'; raw: string | string[][] }> =>
       ipcRenderer.invoke('file:readImportFile', filePath),
-    testNotification: (): Promise<{ ok: boolean; error?: string }> =>
-      ipcRenderer.invoke('shell:testNotification')
+    testNotification: (): Promise<{ ok: boolean; system: boolean; error?: string }> =>
+      ipcRenderer.invoke('shell:testNotification'),
+    openNotificationSettings: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('shell:openNotificationSettings')
   },
 
   /** 系统通知点击 → 主进程导航指令(提醒引擎发送,如 '#/meetings') */
@@ -33,6 +35,11 @@ const api = {
   /** 提醒触发 → 通知渲染层刷新提醒中心 */
   onRemindersChanged: (cb: () => void): void => {
     ipcRenderer.on('app:reminders-changed', () => cb())
+  },
+
+  /** 应用内通知兜底(提醒触发/测试通知;系统 toast 被勿扰等抑制时仍可见) */
+  onInAppNotify: (cb: (payload: { title: string; body: string; route: string | null }) => void): void => {
+    ipcRenderer.on('app:in-app-notify', (_event, payload) => cb(payload))
   }
 }
 

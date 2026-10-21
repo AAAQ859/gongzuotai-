@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElNotification } from 'element-plus'
 import router from './router'
 import { db } from '@/api/db'
 import { applyUiZoom, normalizeUiZoom } from '@/utils/ui-scale'
@@ -9,6 +10,19 @@ import { applyUiZoom, normalizeUiZoom } from '@/utils/ui-scale'
 onMounted(() => {
   window.api.onNavigate((route) => {
     router.push(route)
+  })
+  // 应用内通知兜底:提醒触发/测试通知时窗口内也弹一条(系统 toast 可能被勿扰抑制)
+  window.api.onInAppNotify(({ title, body, route }) => {
+    ElNotification({
+      title,
+      message: body,
+      type: 'info',
+      duration: 8000,
+      position: 'bottom-right',
+      onClick: () => {
+        if (route) router.push(route)
+      }
+    })
   })
   // 设置页「字体大小」(整体缩放):启动即应用上次保存的档位,未设置时标准 100%
   db.settings

@@ -9,10 +9,14 @@ export interface Api {
     readImportFile: (
       filePath: string
     ) => Promise<{ kind: 'xlsx' | 'csv'; raw: string | string[][] }>
-    testNotification: () => Promise<{ ok: boolean; error?: string }>
+    testNotification: () => Promise<{ ok: boolean; system: boolean; error?: string }>
+    openNotificationSettings: () => Promise<{ ok: boolean; error?: string }>
   }
   onNavigate: (cb: (route: string) => void) => void
   onRemindersChanged: (cb: () => void) => void
+  onInAppNotify: (
+    cb: (payload: { title: string; body: string; route: string | null }) => void
+  ) => void
 }
 
 declare global {
