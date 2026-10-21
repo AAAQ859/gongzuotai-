@@ -6,6 +6,7 @@ import { DB_ACTIONS } from '@shared/types'
 import type {
   Calendar,
   Contact,
+  ContactGroup,
   DbAction,
   EventKind,
   EventStatus,
@@ -64,9 +65,66 @@ export const db = {
       invoke(DB_ACTIONS.eventsSetStatus, { id, status })
   },
   contacts: {
-    list: (): Promise<Contact[]> => invoke(DB_ACTIONS.contactsList),
-    create: (input: { name: string; department?: string; avatar_color?: string }): Promise<Contact> =>
-      invoke(DB_ACTIONS.contactsCreate, input)
+    list: (search?: string): Promise<Contact[]> => invoke(DB_ACTIONS.contactsList, search ? { search } : undefined),
+    create: (
+      input: {
+        name: string
+        kind?: Contact['kind']
+        department?: string
+        position?: string
+        phone?: string
+        wechat?: string
+        email?: string
+        remark?: string
+        avatar_color?: string
+        is_favorite?: number
+        member_count?: number | null
+        purpose?: string
+      }
+    ): Promise<Contact> => invoke(DB_ACTIONS.contactsCreate, input),
+    update: (
+      id: number,
+      patch: Partial<{
+        name: string
+        kind: Contact['kind']
+        department: string
+        position: string
+        phone: string
+        wechat: string
+        email: string
+        remark: string
+        avatar_color: string
+        is_favorite: number
+        member_count: number | null
+        purpose: string
+      }>
+    ): Promise<Contact> => invoke(DB_ACTIONS.contactsUpdate, { id, ...patch }),
+    remove: (id: number): Promise<void> => invoke(DB_ACTIONS.contactsRemove, { id }),
+    setGroups: (contactId: number, groupIds: number[]): Promise<{ groupIds: number[] }> =>
+      invoke(DB_ACTIONS.contactsSetGroups, { contactId, groupIds }),
+    batchCreate: (
+      inputs: Array<{
+        name: string
+        kind?: Contact['kind']
+        department?: string
+        position?: string
+        phone?: string
+        wechat?: string
+        email?: string
+        remark?: string
+      }>
+    ): Promise<{ created: number }> => invoke(DB_ACTIONS.contactsBatchCreate, { inputs }),
+    memberships: (): Promise<Array<{ contact_id: number; group_id: number }>> =>
+      invoke(DB_ACTIONS.contactsMemberships),
+    groupsOf: (id: number): Promise<number[]> => invoke(DB_ACTIONS.contactsGroupsOf, { id })
+  },
+  contactGroups: {
+    list: (): Promise<ContactGroup[]> => invoke(DB_ACTIONS.groupsList),
+    create: (input: { name: string; icon?: string }): Promise<ContactGroup> =>
+      invoke(DB_ACTIONS.groupsCreate, input),
+    update: (id: number, patch: Partial<Pick<ContactGroup, 'name' | 'icon'>>): Promise<ContactGroup> =>
+      invoke(DB_ACTIONS.groupsUpdate, { id, ...patch }),
+    remove: (id: number): Promise<void> => invoke(DB_ACTIONS.groupsRemove, { id })
   },
   settings: {
     get: (key: string, defaultValue?: string): Promise<string> =>

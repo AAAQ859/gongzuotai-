@@ -177,5 +177,15 @@ DELETE FROM calendars
  WHERE name IN ('例行工作','对接事项','报告提交','临时通知','客运部会议日程','韩亚项目组')
    AND id NOT IN (SELECT DISTINCT calendar_id FROM events WHERE calendar_id IS NOT NULL);
 `
+  },
+  {
+    version: 4,
+    name: 'contact-kind-for-groups',
+    // 板块 05 联络接口:通讯录同时容纳个人联系人与微信群/钉钉群等群组记录(PRD 4.6)
+    up: `
+ALTER TABLE contacts ADD COLUMN kind TEXT NOT NULL DEFAULT 'person';
+ALTER TABLE contacts ADD COLUMN member_count INTEGER;
+ALTER TABLE contacts ADD COLUMN purpose TEXT NOT NULL DEFAULT '';
+`
   }
 ]

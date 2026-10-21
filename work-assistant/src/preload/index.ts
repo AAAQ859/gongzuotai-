@@ -9,7 +9,15 @@ const api = {
   db: {
     invoke: <T = unknown>(action: DbAction, payload?: unknown): Promise<DbResult<T>> =>
       ipcRenderer.invoke('db:invoke', action, payload)
-  } satisfies DbApi
+  } satisfies DbApi,
+
+  /** 系统集成:拨号(仅 tel: 协议)与通讯录 CSV 导入 */
+  shell: {
+    openExternal: (url: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('shell:openExternal', url),
+    pickCsv: (): Promise<{ path: string; content: string } | null> =>
+      ipcRenderer.invoke('file:pickCsv')
+  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

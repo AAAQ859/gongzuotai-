@@ -1,4 +1,5 @@
-import { app, ipcMain } from 'electron'
+import { app, dialog, ipcMain, shell } from 'electron'
+import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import type { DbResult, DbStatus } from '@shared/types'
 import { dbFilePath, schemaVersion } from './db/database'
@@ -76,6 +77,10 @@ const handlers: Record<string, Handler> = {
     contactsRepo.setGroups(contactId, groupIds)
     return { groupIds: contactsRepo.groupIdsOf(contactId) }
   },
+  'contacts.batchCreate': (p) =>
+    contactsRepo.batchCreate((p as { inputs: Array<Parameters<typeof contactsRepo.create>[0]> }).inputs),
+  'contacts.memberships': () => contactsRepo.memberships(),
+  'contacts.groupsOf': (p) => contactsRepo.groupIdsOf((p as { id: number }).id),
   'contactGroups.list': () => contactsRepo.listGroups(),
   'contactGroups.create': (p) =>
     contactsRepo.createGroup(p as Parameters<typeof contactsRepo.createGroup>[0]),
@@ -124,4 +129,32 @@ export function registerIpc(): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
+
+  // ---------- 系统集成 ----------
+  // 拨号:仅允许 tel: 协议唤起系统电话软件(用户确认的设计);其他协议一律拒绝
+  ipcMain.handle('shell:openExternal', async (_event, url: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'tel:') return { ok: false, error: '仅支持 tel: 协议' }
+      await shell.openExternal(url)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // 通讯录导入:选择 CSV 文件并读回内容(渲染层解析,解析逻辑可单测)
+  ipcMain.handle(
+    'file:pickCsv',
+    async (): Promise<{ path: string; content: string } | null> => {
+      const picked = await dialog.showOpenDialog({
+        title: '选择通讯录 CSV 文件',
+        properties: ['openFile'],
+        filters: [{ name: 'CSV 文件', extensions: ['csv', 'txt'] }]
+      })
+      if (picked.canceled || !picked.filePaths.length) return null
+      const path = picked.filePaths[0]
+      return { path, content: readFileSync(path, 'utf8') }
+    }
+  )
 }

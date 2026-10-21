@@ -58,9 +58,13 @@ export interface WorkEvent {
   updated_at: string
 }
 
+export type ContactKind = 'person' | 'group'
+
 export interface Contact {
   id: number
   name: string
+  /** 'person' 个人联系人 / 'group' 微信群、钉钉群等群组记录 */
+  kind: ContactKind
   department: string
   position: string
   phone: string
@@ -69,6 +73,10 @@ export interface Contact {
   remark: string
   avatar_color: string
   is_favorite: number
+  /** 群组记录:群成员数 */
+  member_count: number | null
+  /** 群组记录:群用途(如「主要对接韩亚航班事宜」) */
+  purpose: string
   created_at: string
   updated_at: string
 }
@@ -147,6 +155,9 @@ export const DB_ACTIONS = {
   contactsUpdate: 'contacts.update',
   contactsRemove: 'contacts.remove',
   contactsSetGroups: 'contacts.setGroups',
+  contactsBatchCreate: 'contacts.batchCreate',
+  contactsMemberships: 'contacts.memberships',
+  contactsGroupsOf: 'contacts.groupsOf',
   groupsList: 'contactGroups.list',
   groupsCreate: 'contactGroups.create',
   groupsUpdate: 'contactGroups.update',

@@ -28,6 +28,7 @@ export function get(id: number): Contact {
 
 export interface ContactInput {
   name: string
+  kind?: 'person' | 'group'
   department?: string
   position?: string
   phone?: string
@@ -36,17 +37,21 @@ export interface ContactInput {
   remark?: string
   avatar_color?: string
   is_favorite?: number
+  member_count?: number | null
+  purpose?: string
 }
 
 export function create(input: ContactInput): Contact {
   const db = getDb()
   const info = db
     .prepare(
-      `INSERT INTO contacts (name, department, position, phone, wechat, email, remark, avatar_color, is_favorite)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO contacts (name, kind, department, position, phone, wechat, email, remark,
+        avatar_color, is_favorite, member_count, purpose)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       input.name,
+      input.kind ?? 'person',
       input.department ?? '',
       input.position ?? '',
       input.phone ?? '',
@@ -54,9 +59,45 @@ export function create(input: ContactInput): Contact {
       input.email ?? '',
       input.remark ?? '',
       input.avatar_color ?? '#CED4DA',
-      input.is_favorite ?? 0
+      input.is_favorite ?? 0,
+      input.member_count ?? null,
+      input.purpose ?? ''
     )
   return get(Number(info.lastInsertRowid))
+}
+
+/** 批量创建(CSV 导入):单事务,任一行失败整体回滚 */
+export function batchCreate(inputs: ContactInput[]): { created: number } {
+  const db = getDb()
+  db.exec('BEGIN')
+  try {
+    const stmt = db.prepare(
+      `INSERT INTO contacts (name, kind, department, position, phone, wechat, email, remark,
+        avatar_color, is_favorite, member_count, purpose)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    for (const input of inputs) {
+      stmt.run(
+        input.name,
+        input.kind ?? 'person',
+        input.department ?? '',
+        input.position ?? '',
+        input.phone ?? '',
+        input.wechat ?? '',
+        input.email ?? '',
+        input.remark ?? '',
+        input.avatar_color ?? '#CED4DA',
+        input.is_favorite ?? 0,
+        input.member_count ?? null,
+        input.purpose ?? ''
+      )
+    }
+    db.exec('COMMIT')
+    return { created: inputs.length }
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
 }
 
 export function update(id: number, patch: Partial<ContactInput>): Contact {
@@ -64,11 +105,13 @@ export function update(id: number, patch: Partial<ContactInput>): Contact {
   const current = get(id)
   const next = { ...current, ...patch }
   db.prepare(
-    `UPDATE contacts SET name = ?, department = ?, position = ?, phone = ?, wechat = ?,
-      email = ?, remark = ?, avatar_color = ?, is_favorite = ?, updated_at = datetime('now','localtime')
+    `UPDATE contacts SET name = ?, kind = ?, department = ?, position = ?, phone = ?, wechat = ?,
+      email = ?, remark = ?, avatar_color = ?, is_favorite = ?, member_count = ?, purpose = ?,
+      updated_at = datetime('now','localtime')
      WHERE id = ?`
   ).run(
     next.name,
+    next.kind,
     next.department,
     next.position,
     next.phone,
@@ -77,6 +120,8 @@ export function update(id: number, patch: Partial<ContactInput>): Contact {
     next.remark,
     next.avatar_color,
     next.is_favorite,
+    next.member_count,
+    next.purpose,
     id
   )
   return get(id)
@@ -148,6 +193,13 @@ export function updateGroup(
 
 export function removeGroup(id: number): void {
   getDb().prepare('DELETE FROM contact_groups WHERE id = ?').run(id)
+}
+
+/** 全量成员关系:contact_id → group_id 列表(渲染层按分组筛选) */
+export function memberships(): Array<{ contact_id: number; group_id: number }> {
+  return asRows<{ contact_id: number; group_id: number }>(
+    getDb().prepare('SELECT contact_id, group_id FROM contact_group_map').all()
+  )
 }
 
 export function listContactsByGroup(groupId: number): Contact[] {

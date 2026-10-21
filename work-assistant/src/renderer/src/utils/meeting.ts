@@ -6,6 +6,9 @@
 import type { WorkEvent } from '@shared/types'
 import { addDays, fmtDate, pad2 } from './dashboard'
 
+/** 人名缩写(取首字符,用于头像) — 共享实现见 dashboard.initials */
+export { initials as avatarText } from './dashboard'
+
 /** 时间轴显示范围(PRD 4.5:08:00 - 18:00) */
 export const TIMELINE_START = 8 * 60 // 480
 export const TIMELINE_END = 18 * 60 // 1080
@@ -131,11 +134,6 @@ export function meetingSummary(dayMeetings: WorkEvent[], now: Date = new Date())
 /** 明日日期串 */
 export function tomorrowOf(dateStr: string): string {
   return addDays(dateStr, 1)
-}
-
-/** 人名缩写(取首字符,用于头像) */
-export function avatarText(name: string): string {
-  return name.trim().charAt(0) || '?'
 }
 
 /** 会议地点图标:含「线上」/「视频」/「腾讯会议」等关键词用 💻,否则 📍 */

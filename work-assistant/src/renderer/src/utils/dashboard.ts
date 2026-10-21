@@ -228,3 +228,8 @@ export function eventColorsByDay(
   }
   return new Map([...map.entries()].map(([k, v]) => [k, [...v].slice(0, 3)]))
 }
+
+/** 名称缩写:取首字符(通讯录/会议参会人头像共用) */
+export function initials(name: string): string {
+  return name.trim().charAt(0) || '?'
+}

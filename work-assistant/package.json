@@ -14,6 +14,7 @@
     "test:dashboard": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs dashboard-tests.js",
     "test:calendar": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs calendar-tests.js",
     "test:meeting": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs meeting-tests.js",
+    "test:contacts": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs contacts-tests.js",
     "demo:seed": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs seed-demo.js",
     "start": "node scripts/run.mjs electron-vite preview"
   },

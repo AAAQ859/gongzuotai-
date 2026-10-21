@@ -42,10 +42,114 @@ const byName = (name: string): number => {
   return c.id
 }
 
-// 联系人
-const li = contacts.create({ name: '李工', department: '质安部', avatar_color: '#339AF0' })
-const zhang = contacts.create({ name: '张经理', department: '国际部', avatar_color: '#12B886' })
-const wang = contacts.create({ name: '王主任', department: '综合部', avatar_color: '#9775FA' })
+// 联系人(PRD 4.6 通讯录:姓名/部门/职位/电话/微信/邮箱,群组记录同表 kind='group')
+const li = contacts.create({
+  name: '李工',
+  department: '质安部',
+  position: '质量主管',
+  phone: '138-0000-1234',
+  wechat: 'ligong-qa',
+  email: 'li@example.com',
+  avatar_color: '#339AF0',
+  is_favorite: 1
+})
+const zhang = contacts.create({
+  name: '张经理',
+  department: '国际部',
+  position: '国际事务经理',
+  phone: '139-0000-5678',
+  wechat: 'zhang-intl',
+  avatar_color: '#12B886'
+})
+const wang = contacts.create({
+  name: '王主任',
+  department: '综合部',
+  position: '综合办主任',
+  phone: '135-0000-9012',
+  wechat: 'wang-zonghe',
+  avatar_color: '#9775FA',
+  is_favorite: 1
+})
+const piao = contacts.create({
+  name: '朴经理',
+  department: '韩亚航空',
+  position: '驻站代表',
+  phone: '136-0000-3456',
+  wechat: 'piao-hanya',
+  avatar_color: '#F06595'
+})
+const jin = contacts.create({
+  name: '金科长',
+  department: '韩亚航空',
+  position: '运控部',
+  phone: '137-0000-7890',
+  wechat: 'jin-hanya',
+  avatar_color: '#51CF66'
+})
+const zhangAir = contacts.create({
+  name: '张主任',
+  department: '双流机场',
+  position: '地服部',
+  phone: '134-0000-1112',
+  wechat: 'zhang-shuangliu',
+  avatar_color: '#FF922B'
+})
+const cui = contacts.create({
+  name: '崔姐',
+  department: '国际部',
+  position: '结算',
+  phone: '133-0000-1314',
+  wechat: 'cui-jiesuan',
+  avatar_color: '#22B8CF'
+})
+
+// 群组记录(kind='group')
+const hyaGroup = contacts.create({
+  name: '韩亚协调工作群',
+  kind: 'group',
+  department: '微信群',
+  member_count: 12,
+  purpose: '主要对接韩亚航班事宜',
+  avatar_color: '#51CF66'
+})
+const keyunGroup = contacts.create({
+  name: '客运部通知群',
+  kind: 'group',
+  department: '钉钉群',
+  member_count: 35,
+  purpose: '部门通知与工作安排',
+  avatar_color: '#339AF0'
+})
+
+// 通讯录分组(无预设,演示数据自行创建)与成员关系(联系人可属多个分组)
+const groupDefs = [
+  { name: '韩亚项目组', icon: '✈️' },
+  { name: '客运部内部', icon: '🏢' },
+  { name: '双流机场', icon: '🏭' },
+  { name: '质安部', icon: '🛡️' },
+  { name: '国际部', icon: '🌍' },
+  { name: '微信群组', icon: '💬' }
+]
+const grps = groupDefs.map((d) => contacts.createGroup(d))
+const gidOf = (name: string): number => {
+  const g = grps.find((x) => x.name === name)
+  if (!g) throw new Error(`缺少分组: ${name}`)
+  return g.id
+}
+const memberships: Array<[number, string[]]> = [
+  [li.id, ['韩亚项目组', '质安部', '客运部内部']],
+  [zhang.id, ['国际部']],
+  [wang.id, ['客运部内部']],
+  [piao.id, ['韩亚项目组']],
+  [jin.id, ['韩亚项目组']],
+  [zhangAir.id, ['双流机场']],
+  [cui.id, ['国际部']],
+  [hyaGroup.id, ['韩亚项目组', '微信群组']],
+  [keyunGroup.id, ['微信群组']]
+]
+for (const [cid, gnames] of memberships) {
+  contacts.setGroups(cid, gnames.map(gidOf))
+}
 
 const mk = (p: Parameters<typeof events.create>[0]): void => {
   events.create(p)
@@ -196,7 +300,9 @@ const demo = {
   overdue: summary.overdue.length,
   followups: summary.followups.length,
   todayEvents: summary.todayEvents.length,
-  focus: summary.focusCount
+  focus: summary.focusCount,
+  contacts: contacts.list().length,
+  contactGroups: grps.length
 }
 console.log('DEMO_SUMMARY: ' + JSON.stringify(demo))
 
