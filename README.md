@@ -41,6 +41,32 @@
 | 10 | 增强功能(全文检索 / 批量导入导出 / 高级提醒) | 三 |
 | 11 | 打包发布 | 三 |
 
+## 安装与使用(正式版)
+
+构建后的安装包位于 `work-assistant/dist/工作台助手-Setup-1.0.0.exe`(构建产物不纳入 git,需本地执行构建命令生成)。
+
+1. 双击安装包。当前安装包**未做代码签名**,Windows SmartScreen 可能提示「Windows 已保护你的电脑」;点「更多信息」→「仍要运行」即可(应用完全离线,不联网)。
+2. 按向导选择安装位置(默认当前用户目录,无需管理员权限),完成后自动创建**桌面快捷方式**与**开始菜单快捷方式**,可直接启动。
+3. 安装版为单实例运行:重复双击快捷方式只会激活已打开的窗口;关闭窗口默认隐藏到系统托盘,提醒与月末检查继续运行,托盘菜单「退出」才真正结束进程。
+4. 数据位置(重装、升级、卸载均保留):
+   - 数据库:`%APPDATA%\work-assistant\db\work-assistant.db`
+   - 文件板块与自动备份:`文档\工作台助手`
+   - 安装版与开发版共用同一数据目录,可直接沿用开发阶段的数据。
+5. 卸载:Windows「设置 → 应用 → 已安装的应用 → 工作台助手」。卸载默认**不删除**上述用户数据;如需彻底清除,请手动删除 `%APPDATA%\work-assistant` 与 `文档\工作台助手`。
+
+## 构建安装包
+
+```bash
+cd work-assistant
+npm install
+npm run dist       # 类型检查 + 构建 + 生成 NSIS 安装包(dist/工作台助手-Setup-1.0.0.exe)
+npm run dist:dir   # 仅生成免安装目录(dist/win-unpacked),用于验收
+```
+
+- 构建直接使用 `node_modules/electron/dist` 中已安装的 Electron 运行时,无需联网下载。
+- electron-builder 的 NSIS/winCodeSign 工具会缓存在 `%LOCALAPPDATA%\electron-builder\Cache`,首次构建需可访问 GitHub 或提前放好缓存。
+- 安装包为 x64、当前用户安装(`asInvoker`,不弹 UAC)、简体中文向导。
+
 ## 本地开发
 
 ```bash
@@ -50,6 +76,8 @@ npm run dev      # 开发模式(热更新)
 npm run build    # 类型检查 + 构建
 npm start        # 预览构建产物
 ```
+
+也可直接双击仓库根目录的 `启动应用.bat`(等价于 `npm run dev`)。
 
 ## 验收截图
 

@@ -1,7 +1,9 @@
 {
   "name": "work-assistant",
-  "version": "0.1.0",
+  "productName": "工作台助手",
+  "version": "1.0.0",
   "description": "工作台助手 — 离线桌面工作管理与提醒应用",
+  "author": "工作台助手",
   "main": "./out/main/index.js",
   "private": true,
   "scripts": {
@@ -23,24 +25,27 @@
     "test:stats": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs work-stats-tests.js",
     "test:enhance": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs enhance-tests.js",
     "demo:seed": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs seed-demo.js",
-    "start": "node scripts/run.mjs electron-vite preview"
+    "start": "node scripts/run.mjs electron-vite preview",
+    "dist": "npm run build && node scripts/run.mjs electron-builder --win nsis --x64",
+    "dist:dir": "npm run build && node scripts/run.mjs electron-builder --win dir --x64"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.2",
     "adm-zip": "^0.6.1",
-    "element-plus": "^2.14.7",
-    "vue": "^3.5.44",
-    "vue-router": "^5.4.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
     "@types/adm-zip": "^0.5.8",
     "@types/node": "^26.6.5",
     "@vitejs/plugin-vue": "^6.0.10",
     "electron": "^44.9.1",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
+    "element-plus": "^2.14.7",
     "typescript": "~5.9.0",
     "vite": "^8.3.4",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0",
     "vue-tsc": "^3.3.13"
   }
 }

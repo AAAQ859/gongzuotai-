@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
-import { writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync } from 'fs'
 import { initDatabase } from './db/database'
 import { registerIpc } from './ipc'
 import * as reminderEngine from './reminders/engine'
@@ -22,6 +22,24 @@ if (process.env.SCREENSHOT_USERDATA) {
 if (process.env.SCREENSHOT_DOCUMENTS) {
   app.setPath('documents', process.env.SCREENSHOT_DOCUMENTS)
 }
+
+// 数据目录固定为 %APPDATA%\work-assistant(与开发版一致):
+// productName 为「工作台助手」后 Electron 默认会改用中文目录,
+// 显式固定可让安装版直接沿用已有数据,重装/升级也不丢数据。
+if (!process.env.SCREENSHOT_USERDATA) {
+  const userDataDir = join(app.getPath('appData'), 'work-assistant')
+  mkdirSync(userDataDir, { recursive: true })
+  app.setPath('userData', userDataDir)
+}
+
+// Windows 通知与任务栏使用固定 AppUserModelID,与安装包 appId 保持一致
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.workassistant.app')
+}
+
+// 单实例:开发版与安装版共用同一数据目录,避免两个进程同时写库、重复触发提醒
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) app.quit()
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -111,7 +129,19 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  } else {
+    createWindow()
+  }
+})
+
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return
   // 初始化本地数据库(userData/db/work-assistant.db)+ 注册 IPC
   initDatabase(app.getPath('userData'))
   registerIpc()

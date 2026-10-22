@@ -1,0 +1,58 @@
+# 工作台助手 Windows 安装包配置(electron-builder)
+# 构建:npm run dist(安装包)/ npm run dist:dir(免安装目录,验收用)
+appId: com.workassistant.app
+productName: 工作台助手
+copyright: Copyright © 2026 工作台助手
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+  # xlsx 通过本地 vendor 包(file: 依赖)安装,electron-builder 的依赖收集不会自动带上,
+  # 必须显式打包,否则安装版导出 Excel 时会找不到模块
+  - node_modules/xlsx/**/*
+  - '!**/*.map'
+
+asar: true
+npmRebuild: false
+compression: normal
+# 直接使用已安装的 Electron 运行目录,避免构建时再从 GitHub 下载 130MB 运行时
+# (离线/受限网络可稳定构建;目录来自 devDependencies 的 electron 包)
+electronDist: node_modules/electron/dist
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  executableName: WorkAssistant
+  artifactName: 工作台助手-Setup-${version}.exe
+  requestedExecutionLevel: asInvoker
+  legalTrademarks: 工作台助手
+
+nsis:
+  # 向导式安装:欢迎页 → 安装范围 → 安装目录 → 安装 → 完成
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  # 创建桌面与开始菜单快捷方式,安装完成后可立即启动
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 工作台助手
+  runAfterFinish: true
+  # 卸载时保留用户数据(%APPDATA%\work-assistant 与文档目录中的文件/备份)
+  deleteAppDataOnUninstall: false
+  uninstallDisplayName: 工作台助手
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  # 安装界面使用简体中文(不显示语言选择框,按系统语言自动应用)
+  installerLanguages:
+    - zh_CN
+  displayLanguageSelector: false
+  language: '2052'
