@@ -6,6 +6,8 @@ import type {
   SummaryExportResult,
   SummaryFormat
 } from '@shared/summary'
+import type { BackupCreateResult, BackupRestoreResult } from '@shared/backup'
+import type { TrayStatus } from '@shared/tray'
 
 /** 文件板块通道调用:失败统一抛错,调用方 catch 后提示 */
 async function invokeFiles<T>(channel: string, payload?: unknown): Promise<T> {
@@ -77,6 +79,24 @@ const api = {
       payload: SummaryExportPayload
     ): Promise<SummaryExportResult | null> =>
       invokeFiles('summary:export', { format, payload })
+  },
+
+  /** 系统托盘 / 开机自启(板块 10) */
+  system: {
+    trayStatus: (): Promise<TrayStatus> => ipcRenderer.invoke('app:trayStatus'),
+    setCloseToTray: (enabled: boolean): Promise<TrayStatus> =>
+      ipcRenderer.invoke('app:setCloseToTray', enabled),
+    setAutoLaunch: (enabled: boolean): Promise<TrayStatus> =>
+      ipcRenderer.invoke('app:setAutoLaunch', enabled),
+    showWindow: (): Promise<TrayStatus> => ipcRenderer.invoke('app:showWindow')
+  },
+
+  /** 数据备份 / 恢复(板块 10) */
+  backup: {
+    create: (): Promise<BackupCreateResult | null> => invokeFiles('backup:create'),
+    restore: (): Promise<BackupRestoreResult | null> => invokeFiles('backup:restore'),
+    dir: (): Promise<string> => ipcRenderer.invoke('backup:dir'),
+    openDir: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('backup:openDir')
   },
 
   /** 系统通知点击 → 主进程导航指令(提醒引擎发送,如 '#/meetings') */

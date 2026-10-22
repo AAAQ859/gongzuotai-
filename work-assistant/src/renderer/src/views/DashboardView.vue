@@ -18,6 +18,7 @@ import {
   roundToNextHalfHour,
   weekdayText
 } from '@/utils/dashboard'
+import WorkStats from '@/components/WorkStats.vue'
 
 const router = useRouter()
 
@@ -370,6 +371,9 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
         </div>
       </div>
     </div>
+
+    <!-- 工作统计图表(板块 10):完成趋势 / 事项分类 / 对接人活跃度 -->
+    <WorkStats :events="events" :contacts="contacts" :now="now" />
 
     <!-- 快捷新增对话框 -->
     <el-dialog v-model="dialogVisible" title="新增日程" width="480px" append-to-body>

@@ -1,10 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { extname } from 'node:path'
 import * as XLSX from 'xlsx'
 import { DatabaseSync } from 'node:sqlite'
 import type { DbResult, DbStatus } from '@shared/types'
 import type { FilesResult } from '@shared/files'
+import type { BackupCreateResult, BackupRestoreResult } from '@shared/backup'
+import { TRAY_CLOSE_KEY } from '@shared/tray'
 import type {
   SummaryExportPayload,
   SummaryExportResult,
@@ -21,6 +23,13 @@ import * as settingsRepo from './db/repositories/settings'
 import * as reminderEngine from './reminders/engine'
 import * as filesService from './files/service'
 import { exportSummary } from './summary/export'
+import { backupDirPath, createBackup, restoreBackup } from './backup/service'
+import {
+  applyAutoLaunchFromSettings,
+  setAutoLaunch,
+  showMainWindow,
+  trayStatus
+} from './tray'
 
 type Handler = (payload: unknown) => unknown
 
@@ -377,6 +386,65 @@ export function registerIpc(): void {
     try {
       await shell.openExternal('ms-settings:notifications')
       return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // ---------- 系统托盘 / 开机自启(板块 10) ----------
+  ipcMain.handle('app:trayStatus', () => trayStatus())
+
+  ipcMain.handle('app:setCloseToTray', (_event, enabled: boolean) => {
+    settingsRepo.set(TRAY_CLOSE_KEY, enabled ? '1' : '0')
+    return trayStatus()
+  })
+
+  ipcMain.handle('app:setAutoLaunch', (_event, enabled: boolean) => {
+    setAutoLaunch(!!enabled)
+    return trayStatus()
+  })
+
+  ipcMain.handle('app:showWindow', () => {
+    showMainWindow()
+    return trayStatus()
+  })
+
+  // ---------- 数据备份 / 恢复(板块 10) ----------
+  ipcMain.handle(
+    'backup:create',
+    async (event): Promise<FilesResult<BackupCreateResult | null>> => {
+      try {
+        const parent = BrowserWindow.fromWebContents(event.sender)
+        return { ok: true, data: await createBackup(parent) }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'backup:restore',
+    async (event): Promise<FilesResult<BackupRestoreResult | null>> => {
+      try {
+        const parent = BrowserWindow.fromWebContents(event.sender)
+        const result = await restoreBackup(parent)
+        // 备份内的设置可能改变开机自启意图,恢复后按新设置校正系统注册项
+        if (result) applyAutoLaunchFromSettings()
+        return { ok: true, data: result }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle('backup:dir', (): string => backupDirPath())
+
+  ipcMain.handle('backup:openDir', async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const dir = backupDirPath()
+      mkdirSync(dir, { recursive: true })
+      const err = await shell.openPath(dir)
+      return err ? { ok: false, error: err } : { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }

@@ -5,6 +5,13 @@ import { initDatabase } from './db/database'
 import { registerIpc } from './ipc'
 import * as reminderEngine from './reminders/engine'
 import { startMonthlyReminder } from './summary/monthly'
+import {
+  applyAutoLaunchFromSettings,
+  destroyTray,
+  markQuitting,
+  setupTray,
+  shouldHideWindowOnClose
+} from './tray'
 
 // 验收截图模式可指定独立数据目录(SCREENSHOT_USERDATA),用于演示数据验收,不污染真实用户数据
 if (process.env.SCREENSHOT_USERDATA) {
@@ -32,6 +39,14 @@ function createWindow(): BrowserWindow {
   })
 
   win.on('ready-to-show', () => win.show())
+
+  // 关闭主窗口:按设置隐藏到系统托盘,应用与提醒继续运行;托盘「退出」才真正退出
+  win.on('close', (event) => {
+    if (shouldHideWindowOnClose()) {
+      event.preventDefault()
+      win.hide()
+    }
+  })
 
   // 缩放唯一入口是设置页「字体大小」(CSS zoom):禁用 Ctrl+滚轮/Ctrl+加减号页面缩放,
   // 避免页面被放大后视口变小、固定宽度面板互相挤压
@@ -105,6 +120,14 @@ app.whenReady().then(() => {
 
   createWindow()
 
+  // 系统托盘(板块 10):常驻托盘、关闭到托盘、菜单快捷入口
+  setupTray(
+    () => BrowserWindow.getAllWindows()[0] ?? null,
+    createWindow
+  )
+  // 开机自启:按保存的设置校正系统注册项
+  applyAutoLaunchFromSettings()
+
   // 提醒引擎:回填事件提醒行并开始定时检查(板块 06)
   reminderEngine.startEngine(() => BrowserWindow.getAllWindows()[0] ?? null)
 
@@ -112,9 +135,19 @@ app.whenReady().then(() => {
   startMonthlyReminder(() => BrowserWindow.getAllWindows()[0] ?? null)
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win && !win.isDestroyed()) {
+      win.show()
+      win.focus()
+    } else {
+      createWindow()
+    }
   })
 })
+
+// 真正退出时放行窗口 close(close-to-tray 不能拦截退出流程)
+app.on('before-quit', () => markQuitting())
+app.on('will-quit', () => destroyTray())
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

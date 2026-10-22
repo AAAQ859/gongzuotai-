@@ -5,6 +5,8 @@ import type {
   SummaryExportResult,
   SummaryFormat
 } from '@shared/summary'
+import type { BackupCreateResult, BackupRestoreResult } from '@shared/backup'
+import type { TrayStatus } from '@shared/tray'
 
 export interface Api {
   appVersion: () => Promise<string>
@@ -39,6 +41,18 @@ export interface Api {
       format: SummaryFormat,
       payload: SummaryExportPayload
     ) => Promise<SummaryExportResult | null>
+  }
+  system: {
+    trayStatus: () => Promise<TrayStatus>
+    setCloseToTray: (enabled: boolean) => Promise<TrayStatus>
+    setAutoLaunch: (enabled: boolean) => Promise<TrayStatus>
+    showWindow: () => Promise<TrayStatus>
+  }
+  backup: {
+    create: () => Promise<BackupCreateResult | null>
+    restore: () => Promise<BackupRestoreResult | null>
+    dir: () => Promise<string>
+    openDir: () => Promise<{ ok: boolean; error?: string }>
   }
   onNavigate: (cb: (route: string) => void) => void
   onRemindersChanged: (cb: () => void) => void

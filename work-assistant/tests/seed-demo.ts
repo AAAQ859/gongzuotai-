@@ -397,6 +397,76 @@ const extraDoneDefs: Array<{
     offset: -2,
     description: '换季保障周例会,通报准备进度并协调待办',
     location: '天府B216会议室'
+  },
+  // 历史完成项(板块 10 工作统计图表:近 6 个月趋势/分类/对接人演示数据)
+  {
+    kind: 'task',
+    cal: '对接事项',
+    title: '暑运保障资源复盘',
+    category: '对接',
+    offset: -38,
+    contact: li.id,
+    description: '复盘暑运期间保障资源使用情况,整理对接问题清单'
+  },
+  {
+    kind: 'meeting',
+    cal: '客运部会议日程',
+    title: '暑运总结会',
+    category: '例会',
+    offset: -45,
+    description: '客运部暑运工作总结会',
+    location: '天府B216会议室'
+  },
+  {
+    kind: 'task',
+    cal: '报告提交',
+    title: '暑运安全服务总结报告',
+    category: '报告',
+    offset: -66,
+    description: '汇总暑运安全服务数据并形成总结报告'
+  },
+  {
+    kind: 'task',
+    cal: '例行工作',
+    title: '岗位值班表编排',
+    category: '例行',
+    offset: -75,
+    description: '编排下一周期岗位值班表'
+  },
+  {
+    kind: 'meeting',
+    cal: '韩亚项目组',
+    title: '韩亚项目月度协调会',
+    category: '协调会',
+    offset: -95,
+    description: '与韩亚项目组召开月度协调会',
+    location: '线上会议'
+  },
+  {
+    kind: 'task',
+    cal: '对接事项',
+    title: '双流机场地服对接',
+    category: '对接',
+    offset: -105,
+    contact: wang.id,
+    description: '与双流机场地服对接航班保障事宜'
+  },
+  {
+    kind: 'task',
+    cal: '报告提交',
+    title: '二季度服务数据分析',
+    category: '报告',
+    offset: -125,
+    description: '分析二季度服务数据并形成报告'
+  },
+  {
+    kind: 'meeting',
+    cal: '客运部会议日程',
+    title: '季度安全讲评会',
+    category: '例会',
+    offset: -155,
+    description: '参加客运部季度安全讲评会',
+    location: '天府B216会议室'
   }
 ]
 for (const d of extraDoneDefs) {

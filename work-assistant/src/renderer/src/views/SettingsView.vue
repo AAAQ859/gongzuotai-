@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage, ElNotification } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { DbStatus } from '@shared/types'
+import type { TrayStatus } from '@shared/tray'
+import type { BackupRestoreResult } from '@shared/backup'
 import { DB_ACTIONS } from '@shared/types'
+import { countsSummary } from '@shared/backup'
+import { formatSize } from '@shared/files'
 import { db } from '@/api/db'
 import {
   UI_SCALE_OPTIONS,
@@ -23,6 +27,18 @@ const testing = ref(false)
 // 显示设置(字体大小,整体缩放):修改即保存并立即应用
 const activeZoom = ref(1)
 
+// 系统托盘与开机自启(板块 10)
+const trayStatus = ref<TrayStatus | null>(null)
+const closeToTray = ref(true)
+const autoLaunch = ref(false)
+
+// 数据备份与恢复(板块 10)
+const backupDir = ref('')
+const lastBackupAt = ref('')
+const lastBackupPath = ref('')
+const backingUp = ref(false)
+const restoring = ref(false)
+
 onMounted(async () => {
   try {
     appVersion.value = await window.api.appVersion()
@@ -39,8 +55,18 @@ onMounted(async () => {
     meetingMins.value = await db.settings.get('meeting_reminder_minutes', '15')
     dailyTime.value = await db.settings.get('daily_push_time', '09:00')
     activeZoom.value = normalizeUiZoom(await db.settings.get('ui_zoom', '1'))
+    lastBackupAt.value = await db.settings.get('last_backup_at', '')
+    lastBackupPath.value = await db.settings.get('last_backup_path', '')
   } catch {
     // 设置读取失败时保留默认值
+  }
+  try {
+    trayStatus.value = await window.api.system.trayStatus()
+    closeToTray.value = trayStatus.value.closeToTray
+    autoLaunch.value = trayStatus.value.autoLaunch
+    backupDir.value = await window.api.backup.dir()
+  } catch {
+    // 托盘/备份信息读取失败时保留默认值
   }
 })
 
@@ -99,6 +125,105 @@ async function testNotification(): Promise<void> {
 async function openNotificationSettings(): Promise<void> {
   const res = await window.api.shell.openNotificationSettings()
   if (!res.ok) ElMessage.warning(res.error ?? '无法打开系统通知设置')
+}
+
+// ---------- 系统托盘与开机自启(板块 10) ----------
+
+async function saveCloseToTray(): Promise<void> {
+  try {
+    trayStatus.value = await window.api.system.setCloseToTray(closeToTray.value)
+    closeToTray.value = trayStatus.value.closeToTray
+    ElMessage.success(
+      closeToTray.value ? '已开启:关闭窗口时隐藏到系统托盘' : '已关闭:关闭窗口将退出应用'
+    )
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
+}
+
+async function saveAutoLaunch(): Promise<void> {
+  try {
+    trayStatus.value = await window.api.system.setAutoLaunch(autoLaunch.value)
+    autoLaunch.value = trayStatus.value.autoLaunch
+    ElMessage.success(autoLaunch.value ? '已设置开机自动启动' : '已取消开机自动启动')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '设置开机自启失败')
+  }
+}
+
+// ---------- 数据备份与恢复(板块 10) ----------
+
+async function openBackupDir(): Promise<void> {
+  const res = await window.api.backup.openDir()
+  if (!res.ok) ElMessage.warning(res.error ?? '无法打开备份文件夹')
+}
+
+async function doBackup(): Promise<void> {
+  if (backingUp.value) return
+  backingUp.value = true
+  try {
+    const res = await window.api.backup.create()
+    if (!res) return // 用户取消保存对话框
+    lastBackupAt.value = res.manifest.createdAt
+    lastBackupPath.value = res.path
+    try {
+      await db.settings.set('last_backup_at', res.manifest.createdAt)
+      await db.settings.set('last_backup_path', res.path)
+    } catch {
+      // 备份已成功,仅记录失败,不影响结果
+    }
+    ElMessage({
+      message: `备份完成(${formatSize(res.size)}):${res.path}`,
+      type: 'success',
+      duration: 8000
+    })
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '备份失败')
+  } finally {
+    backingUp.value = false
+  }
+}
+
+async function doRestore(): Promise<void> {
+  if (restoring.value) return
+  try {
+    await ElMessageBox.confirm(
+      '恢复会用备份包中的数据覆盖当前的日程、会议、联系人、文件板块索引、纲要草稿与设置。' +
+        '文件板块中的本地文件不会被改动;恢复前会自动保存一份当前数据的安全副本。确定继续吗?',
+      '恢复数据',
+      { confirmButtonText: '选择备份包并恢复', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  restoring.value = true
+  let res: BackupRestoreResult | null = null
+  try {
+    res = await window.api.backup.restore()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '恢复失败')
+    return
+  } finally {
+    restoring.value = false
+  }
+  if (!res) return // 用户取消选择备份文件
+
+  try {
+    await ElMessageBox.alert(
+      `已恢复到 ${res.manifest.createdAt} 的备份。\n\n恢复后数据:${countsSummary(res.counts)}\n\n` +
+        `恢复前的数据已自动保存为安全副本:\n${res.safetyCopy}\n\n点击「重新载入」刷新界面。`,
+      '恢复成功',
+      {
+        confirmButtonText: '重新载入',
+        showCancelButton: false,
+        customClass: 'backup-restore-alert'
+      }
+    )
+  } catch {
+    // 关闭提示框时也继续刷新
+  }
+  location.reload()
 }
 </script>
 
@@ -202,6 +327,62 @@ async function openNotificationSettings(): Promise<void> {
       </div>
       <div class="settings-hint">
         字体与界面按比例同步缩放(整体缩放),点击后立即生效并自动保存,重启应用保持。窗口过小时各板块会自动重排,不会重叠。
+      </div>
+    </el-card>
+
+    <el-card shadow="never" class="settings-card">
+      <template #header>系统托盘与启动</template>
+      <div class="settings-row">
+        <span class="settings-label">关闭窗口时隐藏到托盘</span>
+        <el-switch v-model="closeToTray" @change="saveCloseToTray" />
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">开机自动启动</span>
+        <el-switch v-model="autoLaunch" @change="saveAutoLaunch" />
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">托盘状态</span>
+        <el-tag :type="trayStatus?.active ? 'success' : 'info'" effect="light" size="small">
+          {{ trayStatus?.active ? '运行中' : '未启用' }}
+        </el-tag>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">托盘菜单</span>
+        <span>{{ (trayStatus?.menu ?? []).join(' · ') }}</span>
+      </div>
+      <div class="settings-hint">
+        开启后点窗口右上角关闭不会退出应用,而是收起到任务栏右下角的托盘图标;单击托盘图标可重新打开,右键菜单可进入工作纲要、提醒中心或完全退出。
+        开机自启在安装版中随 Windows 登录启动;开发模式注册的是当前开发启动方式,打包后自动切换为安装版路径。
+      </div>
+    </el-card>
+
+    <el-card shadow="never" class="settings-card">
+      <template #header>数据备份与恢复</template>
+      <div class="settings-row">
+        <span class="settings-label">默认备份位置</span>
+        <span class="settings-mono">{{ backupDir || '读取中…' }}</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">上次备份时间</span>
+        <span>{{ lastBackupAt || '暂无备份' }}</span>
+      </div>
+      <div v-if="lastBackupPath" class="settings-row">
+        <span class="settings-label">上次备份文件</span>
+        <span class="settings-mono">{{ lastBackupPath }}</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">备份操作</span>
+        <div class="settings-actions">
+          <el-button type="primary" size="small" :loading="backingUp" @click="doBackup">
+            立即备份
+          </el-button>
+          <el-button size="small" :loading="restoring" @click="doRestore">从备份恢复</el-button>
+          <el-button size="small" link @click="openBackupDir">打开备份文件夹</el-button>
+        </div>
+      </div>
+      <div class="settings-hint">
+        备份包含日程、会议、联系人、文件板块索引、纲要草稿与设置,保存为 ZIP 备份包;
+        不包含文件板块中的实际文件,恢复后请确保这些文件仍在原位置。恢复前会自动保存当前数据的安全副本,恢复成功后界面自动刷新。
       </div>
     </el-card>
 
@@ -310,5 +491,10 @@ async function openNotificationSettings(): Promise<void> {
 
 .ui-scale-opt.is-active .ui-scale-opt__pct {
   color: var(--wa-brand-text);
+}
+
+/* 恢复成功提示保留换行(数据摘要/安全副本路径分行显示) */
+:global(.backup-restore-alert .el-message-box__message) {
+  white-space: pre-line;
 }
 </style>
