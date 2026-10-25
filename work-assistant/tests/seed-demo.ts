@@ -310,7 +310,7 @@ mk({
   start_time: `${today} 10:00`,
   end_time: `${addDays(today, 2)} 17:00`
 })
-mk({
+const training = events.create({
   calendar_id: byName('例行工作'),
   kind: 'task',
   title: '企业微信培训报名',
@@ -318,6 +318,7 @@ mk({
   start_time: `${today} 16:00`,
   end_time: `${addDays(today, 2)} 12:00`
 })
+markDoneOn(training.id, today, '16:00')
 mk({
   calendar_id: byName('临时通知'),
   kind: 'task',
@@ -333,8 +334,8 @@ mk({
   title: 'TV香港航空对接会',
   category: '会议',
   description: '与香港航空协调冬季航班时刻与地面保障接口',
-  start_time: `${addDays(today, 1)} 10:00`,
-  end_time: `${addDays(today, 1)} 11:30`,
+  start_time: `${addDays(today, 1)} 09:00`,
+  end_time: `${addDays(today, 1)} 10:30`,
   location: '线上会议',
   attendees: [
     { contact_id: zhang.id, name: '张经理' },
@@ -372,10 +373,10 @@ markDoneOn(doneEv.id, weekStart, '17:30')
 
 // 明日临时事项(用于「明日待办」中会议/事项分列演示)
 mk({
-  calendar_id: byName('例行工作'),
+  calendar_id: byName('临时通知'),
   kind: 'task',
   title: '整理换季检查单',
-  category: '例行',
+  category: '临时',
   description: '补齐换季检查单签字页,交综合部归档',
   start_time: `${addDays(today, 1)} 09:00`,
   end_time: `${addDays(today, 1)} 11:00`,
@@ -393,7 +394,7 @@ seriesService.createSeries(
   {
     calendar_id: byName('例行工作'),
     title: '提交周报',
-    category: '例行',
+    category: '报告',
     description: '汇总本周工作进展与下周计划,发送部门群',
     start_time: `${weeklyReportDate} 15:30`,
     end_time: `${weeklyReportDate} 16:30`,
@@ -409,7 +410,7 @@ seriesService.createSeries(
   {
     calendar_id: byName('例行工作'),
     title: '周计划梳理',
-    category: '例行',
+    category: '计划',
     description: '整理本周重点任务与待办优先级',
     start_time: `${weeklyPlanDate} 08:30`,
     end_time: `${weeklyPlanDate} 09:00`,

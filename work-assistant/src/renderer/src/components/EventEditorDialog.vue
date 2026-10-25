@@ -349,7 +349,9 @@ async function onDeleteScope(scope: 'one' | 'series'): Promise<void> {
     :model-value="modelValue"
     :title="dialogTitle"
     width="560px"
+    top="4vh"
     append-to-body
+    class="event-editor"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <el-form label-width="104px" @submit.prevent>
@@ -580,6 +582,13 @@ async function onDeleteScope(scope: 'one' | 'series'): Promise<void> {
 </template>
 
 <style scoped>
+/* 表单字段较多:内容区内滚动,保证 1280×800 下「保存」始终可见 */
+:global(.event-editor .el-dialog__body) {
+  max-height: 62vh;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
 .form-tip {
   width: 100%;
   margin-top: 4px;

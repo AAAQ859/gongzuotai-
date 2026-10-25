@@ -86,6 +86,8 @@ function createWindow(): BrowserWindow {
   const screenshotRoute = process.env.SCREENSHOT_ROUTE
   const screenshotScript = process.env.SCREENSHOT_SCRIPT
   if (screenshotPath) {
+    // 截图验收时窗口可能在后台被 Chromium 节流,导致 capturePage 取到打开弹窗前的旧帧
+    win.webContents.setBackgroundThrottling(false)
     win.webContents.on('did-finish-load', () => {
       setTimeout(async () => {
         try {
@@ -99,6 +101,11 @@ function createWindow(): BrowserWindow {
             await win.webContents.executeJavaScript(screenshotScript)
             await new Promise((r) => setTimeout(r, 800))
           }
+          // 强制前台重绘后再截图,避免窗口被遮挡时返回旧帧
+          win.show()
+          win.focus()
+          win.webContents.invalidate()
+          await new Promise((r) => setTimeout(r, 400))
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
           console.log(`[screenshot] saved to ${screenshotPath}`)
