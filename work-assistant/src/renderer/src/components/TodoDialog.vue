@@ -93,10 +93,6 @@ function timeRange(ev: WorkEvent): string {
   return endDay && endDay !== startDay ? `${start} - 次日 ${end}` : `${start} - ${end}`
 }
 
-function endTimeText(ev: WorkEvent): string {
-  return ev.end_time?.slice(11) ?? ''
-}
-
 function contactName(id: number | null): string {
   return props.contacts.find((c) => c.id === id)?.name ?? ''
 }
@@ -157,56 +153,49 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 
         <div v-if="sortedMeetings.length" class="meeting-list">
           <article v-for="ev in sortedMeetings" :key="ev.id" class="meeting-card">
-            <div class="meeting-card__time">
-              <div class="meeting-card__start">{{ ev.start_time?.slice(11) ?? '全天' }}</div>
-              <div v-if="endTimeText(ev)" class="meeting-card__end">至 {{ endTimeText(ev) }}</div>
-              <span class="meeting-card__state" :class="`is-${metaState(ev).key.replace('_', '-')}`">
-                {{ metaState(ev).label }}
+            <div class="meeting-card__title-row">
+              <h3 class="meeting-card__title">{{ ev.title }}</h3>
+              <span
+                v-if="ev.category"
+                class="meeting-card__chip"
+                :style="{
+                  color: categoryColor(ev.category),
+                  background: categoryColor(ev.category) + '1A'
+                }"
+              >
+                {{ ev.category }}
               </span>
             </div>
 
-            <div class="meeting-card__body">
-              <div class="meeting-card__title-row">
-                <h3 class="meeting-card__title">{{ ev.title }}</h3>
-                <span
-                  v-if="ev.category"
-                  class="meeting-card__chip"
-                  :style="{
-                    color: categoryColor(ev.category),
-                    background: categoryColor(ev.category) + '1A'
-                  }"
-                >
-                  {{ ev.category }}
-                </span>
-              </div>
-
-              <div class="meeting-card__meta">
-                <span class="meeting-card__meta-item">
-                  <span
-                    class="meeting-card__meta-label"
-                    :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
-                  >{{ fieldLabel('time') }}</span>{{ timeRange(ev) }}
-                </span>
-                <span v-if="ev.location" class="meeting-card__meta-item">
-                  <span
-                    class="meeting-card__meta-label"
-                    :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
-                  >{{ fieldLabel('location') }}</span>{{ ev.location }}
-                </span>
-                <span v-if="ev.attendees.length" class="meeting-card__meta-item">
-                  <span
-                    class="meeting-card__meta-label"
-                    :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
-                  >{{ fieldLabel('attendees') }}</span>{{ ev.attendees.map((a) => a.name).join('、') }}
-                </span>
-              </div>
-
-              <div v-if="ev.description" class="meeting-card__note">
+            <div class="meeting-card__meta">
+              <span v-if="ev.attendees.length" class="meeting-card__meta-item">
                 <span
                   class="meeting-card__meta-label"
                   :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
-                >{{ fieldLabel('note') }}</span>{{ ev.description }}
-              </div>
+                >{{ fieldLabel('attendees') }}</span>{{ ev.attendees.map((a) => a.name).join('、') }}
+              </span>
+              <span class="meeting-card__meta-item meeting-card__meta-item--time">
+                <span
+                  class="meeting-card__meta-label"
+                  :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
+                >{{ fieldLabel('time') }}</span>{{ timeRange(ev) }}
+                <span class="meeting-card__state" :class="`is-${metaState(ev).key.replace('_', '-')}`">
+                  {{ metaState(ev).label }}
+                </span>
+              </span>
+              <span v-if="ev.location" class="meeting-card__meta-item">
+                <span
+                  class="meeting-card__meta-label"
+                  :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
+                >{{ fieldLabel('location') }}</span>{{ ev.location }}
+              </span>
+            </div>
+
+            <div v-if="ev.description" class="meeting-card__note">
+              <span
+                class="meeting-card__meta-label"
+                :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
+              >{{ fieldLabel('note') }}</span>{{ ev.description }}
             </div>
           </article>
         </div>
@@ -325,6 +314,7 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 }
 
 .meeting-card__meta-label {
+  flex-shrink: 0;
   color: var(--wa-text-muted);
   font-weight: 500;
 }
@@ -419,8 +409,6 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 }
 
 .meeting-card {
-  display: flex;
-  gap: 16px;
   padding: 15px 18px;
   background: linear-gradient(180deg, #fbfdff 0%, #fff 100%);
   border: 1px solid #dce8f5;
@@ -428,33 +416,14 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
   border-radius: 10px;
 }
 
-.meeting-card__time {
-  width: 82px;
-  flex-shrink: 0;
-  padding-top: 2px;
-  text-align: right;
-}
-
-.meeting-card__start {
-  font-size: 24px;
-  font-weight: 800;
-  line-height: 1.1;
-  color: #1971c2;
-  font-variant-numeric: tabular-nums;
-}
-
-.meeting-card__end {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--wa-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .meeting-card__state {
-  display: inline-block;
-  margin-top: 7px;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 8px;
   padding: 1px 8px;
   font-size: 11px;
+  line-height: 1.5;
   border-radius: 999px;
   color: var(--wa-text-muted);
   background: #f1f3f5;
@@ -473,11 +442,6 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 .meeting-card__state.is-not-started {
   color: var(--wa-brand-text);
   background: var(--wa-brand-soft);
-}
-
-.meeting-card__body {
-  flex: 1;
-  min-width: 0;
 }
 
 .meeting-card__title-row {
@@ -505,18 +469,27 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 
 .meeting-card__meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-  margin-top: 7px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  margin-top: 8px;
   font-size: 13px;
   line-height: 1.6;
   color: var(--wa-text);
 }
 
 .meeting-card__meta-item {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: baseline;
   gap: 0;
+  max-width: 100%;
+  min-width: 0;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.meeting-card__meta-item--time {
+  align-items: center;
 }
 
 .meeting-card__note {
