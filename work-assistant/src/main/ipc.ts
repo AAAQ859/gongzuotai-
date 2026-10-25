@@ -466,6 +466,29 @@ export function registerIpc(): void {
     return trayStatus()
   })
 
+  // 打印当前待办弹窗:渲染层打印样式会把页面内容收敛到弹窗,主进程只负责系统打印窗口
+  ipcMain.handle(
+    'app:print',
+    async (event): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win || win.isDestroyed()) return { ok: false, error: '窗口不可用,无法打印' }
+      return await new Promise((resolve) => {
+        win.webContents.print(
+          { silent: false, printBackground: true },
+          (success, failureReason) => {
+            if (success) {
+              resolve({ ok: true })
+            } else if (/cancel/i.test(failureReason)) {
+              resolve({ ok: false, cancelled: true })
+            } else {
+              resolve({ ok: false, error: failureReason || '打印失败' })
+            }
+          }
+        )
+      })
+    }
+  )
+
   // ---------- 数据备份 / 恢复(板块 10) ----------
   ipcMain.handle(
     'backup:create',

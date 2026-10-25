@@ -10,6 +10,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AttendeeRef, Calendar, Contact, EventKind, TaskType, WorkEvent } from '@shared/types'
+import { SELF_ATTENDEE_NAME } from '@shared/types'
 import { db } from '@/api/db'
 import type { CreateEventInput } from '@/api/db'
 import { fmtDate, fmtDateTime, roundToNextHalfHour } from '@/utils/dashboard'
@@ -198,14 +199,12 @@ function contactName(id: number): string {
 /** 参会人/组织:联系人取 id,直接输入的名称以文本保存(contact_id=null) */
 function attendeePayload(): AttendeeRef[] {
   const out: AttendeeRef[] = []
+  const seen = new Set<string>()
   for (const value of form.attendeeValues) {
-    if (typeof value === 'number') {
-      const name = contactName(value)
-      if (name) out.push({ contact_id: value, name })
-    } else {
-      const name = String(value).trim()
-      if (name) out.push({ contact_id: null, name })
-    }
+    const name = typeof value === 'number' ? contactName(value) : String(value).trim()
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    out.push({ contact_id: typeof value === 'number' ? value : null, name })
   }
   return out
 }
@@ -398,9 +397,10 @@ async function onDeleteScope(scope: 'one' | 'series'): Promise<void> {
           allow-create
           default-first-option
           clearable
-          placeholder="选择联系人或输入组织名后回车"
+          placeholder="选择联系人或「我」,也可输入组织名后回车"
           style="width: 100%"
         >
+          <el-option label="我(本人)" :value="SELF_ATTENDEE_NAME" />
           <el-option
             v-for="c in contacts"
             :key="c.id"
@@ -408,7 +408,9 @@ async function onDeleteScope(scope: 'one' | 'series'): Promise<void> {
             :value="c.id"
           />
         </el-select>
-        <div class="form-tip">可直接输入组织名,如「韩亚航空运行部」</div>
+        <div class="form-tip">
+          本人参加的会议请选择「我」;工作纲要据此区分会议参与和会议通知。也可直接输入组织名,如「韩亚航空运行部」
+        </div>
       </el-form-item>
 
       <el-form-item label="开始时间">

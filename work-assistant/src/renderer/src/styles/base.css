@@ -45,3 +45,85 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
+
+/* 今日/明日待办打印:只输出弹窗内容,会议多时按 A4 自动分页,卡片不跨页截断 */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body > #app,
+  body > .el-notification,
+  body > .el-message {
+    display: none !important;
+  }
+
+  body > .el-overlay {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .el-overlay-dialog {
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+  }
+
+  .todo-dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .todo-dialog .el-dialog__header {
+    padding: 0 0 10px !important;
+  }
+
+  .todo-dialog .el-dialog__headerbtn,
+  .todo-dialog__actions,
+  .todo-dialog .el-dialog__footer {
+    display: none !important;
+  }
+
+  .todo-dialog .el-dialog__body {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 10px 0 0 !important;
+  }
+
+  .todo-dialog .todo {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .todo-dialog .todo__summary {
+    background: #f5f7fa !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .todo-dialog .meeting-card,
+  .todo-dialog .task-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .todo-dialog .todo-section__head {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+}

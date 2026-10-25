@@ -1,6 +1,6 @@
 /**
  * 工作纲要导出(板块 09):TXT / Excel / Word / PDF。
- * - Word:adm-zip 生成最小 OOXML 包(标题、统计、四章节、备注)
+ * - Word:adm-zip 生成最小 OOXML 包(标题、统计、五章节、备注)
  * - Excel:SheetJS 生成「工作纲要」与「导出说明」两个工作表
  * - PDF:隐藏 BrowserWindow 渲染打印版 HTML 后 webContents.printToPDF
  * 截图验收可用 SCREENSHOT_EXPORT_DIR 跳过系统保存对话框,直接写入指定目录。
@@ -83,7 +83,8 @@ function buildDocx(payload: SummaryExportPayload): Buffer {
       paragraph(
         textRuns(
           `完成工作项 ${payload.stats.completed} 项 · 参加会议 ${payload.stats.meetings} 场 · ` +
-            `对接事项 ${payload.stats.contacts} 项 · 输出报告 ${payload.stats.reports} 份`,
+            `会议通知 ${payload.stats.meeting_notices} 场 · 对接事项 ${payload.stats.contacts} 项 · ` +
+            `输出报告 ${payload.stats.reports} 份`,
           { color: '444444' }
         ),
         'Stats',
@@ -197,6 +198,8 @@ function buildXlsx(payload: SummaryExportPayload): Buffer {
       payload.stats.completed,
       '参加会议',
       payload.stats.meetings,
+      '会议通知',
+      payload.stats.meeting_notices,
       '对接事项',
       payload.stats.contacts,
       '输出报告',
@@ -237,7 +240,10 @@ function buildXlsx(payload: SummaryExportPayload): Buffer {
     ['周期', payload.periodLabel],
     [rangeSpanText(customRange(payload.rangeStart, payload.rangeEnd))],
     ['生成时间', payload.generatedAt],
-    ['统计口径', '完成任务按完成时间归集;会议按召开时间归集;对接/报告按已完成事项统计'],
+    [
+      '统计口径',
+      '完成任务按完成时间归集;会议按召开时间归集,参会人含「我」计参加会议,其余计会议通知;对接/报告按已完成事项统计'
+    ],
     ['备注', payload.template.include_note ? payload.note : '(未包含备注)']
   ]
   const meta = XLSX.utils.aoa_to_sheet(metaRows)
@@ -254,6 +260,7 @@ function buildPdfHtml(payload: SummaryExportPayload): string {
     ? `<div class="stats">
         <span><b>${payload.stats.completed}</b> 完成工作项</span>
         <span><b>${payload.stats.meetings}</b> 参加会议</span>
+        <span><b>${payload.stats.meeting_notices}</b> 会议通知</span>
         <span><b>${payload.stats.contacts}</b> 对接事项</span>
         <span><b>${payload.stats.reports}</b> 输出报告</span>
       </div>`
@@ -286,7 +293,7 @@ function buildPdfHtml(payload: SummaryExportPayload): string {
   body { font-family: "Microsoft YaHei", "PingFang SC", "宋体", sans-serif; color: #262626; font-size: 12pt; line-height: 1.65; margin: 0; }
   h1 { font-family: "Microsoft YaHei", "黑体", sans-serif; text-align: center; font-size: 22pt; margin: 0 0 6mm; letter-spacing: 1px; }
   .period { text-align: center; color: #666; font-size: 10.5pt; margin-bottom: 4mm; }
-  .stats { display: flex; justify-content: center; gap: 10mm; background: #f5f7fa; border-radius: 3mm; padding: 3mm 4mm; margin: 0 0 8mm; font-size: 10.5pt; color: #555; }
+  .stats { display: flex; justify-content: center; flex-wrap: wrap; gap: 4mm 7mm; background: #f5f7fa; border-radius: 3mm; padding: 3mm 4mm; margin: 0 0 8mm; font-size: 10.5pt; color: #555; }
   .stats b { color: #1f3a5f; font-size: 14pt; margin-right: 1mm; }
   section { margin-bottom: 5mm; }
   h2 { font-family: "Microsoft YaHei", "黑体", sans-serif; font-size: 14pt; color: #1f3a5f; border-left: 3px solid #3b82f6; padding-left: 3mm; margin: 0 0 3mm; }

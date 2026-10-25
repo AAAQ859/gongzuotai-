@@ -14,6 +14,12 @@ import {
   normalizeUiZoom,
   uiScalePercent
 } from '@/utils/ui-scale'
+import type { MeetingDisplayMode } from '@shared/display'
+import {
+  loadMeetingDisplayMode,
+  meetingDisplayMode,
+  saveMeetingDisplayMode
+} from '@/utils/meeting-display'
 
 const appVersion = ref('')
 const dbStatus = ref<DbStatus | null>(null)
@@ -55,6 +61,7 @@ onMounted(async () => {
     meetingMins.value = await db.settings.get('meeting_reminder_minutes', '15')
     dailyTime.value = await db.settings.get('daily_push_time', '09:00')
     activeZoom.value = normalizeUiZoom(await db.settings.get('ui_zoom', '1'))
+    await loadMeetingDisplayMode(true)
     lastBackupAt.value = await db.settings.get('last_backup_at', '')
     lastBackupPath.value = await db.settings.get('last_backup_path', '')
   } catch {
@@ -76,6 +83,19 @@ async function saveUiZoom(zoom: number): Promise<void> {
     activeZoom.value = zoom
     applyUiZoom(zoom)
     ElMessage.success(`字体大小已设为「${UI_SCALE_OPTIONS.find((o) => o.zoom === zoom)?.label ?? zoom}」`)
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  }
+}
+
+async function onMeetingDisplayModeChange(mode: MeetingDisplayMode): Promise<void> {
+  try {
+    await saveMeetingDisplayMode(mode)
+    ElMessage.success(
+      mode === 'text'
+        ? '会议时间、地点、参会人已改为文字标签'
+        : '会议时间、地点、参会人已改为图标前缀'
+    )
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '保存失败')
   }
@@ -325,8 +345,21 @@ async function doRestore(): Promise<void> {
           </button>
         </div>
       </div>
+      <div class="settings-row">
+        <span class="settings-label">会议信息显示</span>
+        <el-radio-group
+          v-model="meetingDisplayMode"
+          size="small"
+          @change="onMeetingDisplayModeChange"
+        >
+          <el-radio-button value="text">文字标签</el-radio-button>
+          <el-radio-button value="icon">图标前缀</el-radio-button>
+        </el-radio-group>
+      </div>
       <div class="settings-hint">
         字体与界面按比例同步缩放(整体缩放),点击后立即生效并自动保存,重启应用保持。窗口过小时各板块会自动重排,不会重叠。
+        <br />
+        会议信息显示:文字标签使用「时间 / 地点 / 参会人」,图标前缀使用「🕘 / 📍 / 👥」;作用于今日/明日待办弹窗与会议日历。
       </div>
     </el-card>
 

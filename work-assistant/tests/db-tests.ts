@@ -171,6 +171,48 @@ try {
   settings.set('test_key', 'v1')
   check('设置写入读取', settings.get('test_key') === 'v1')
   check('全部设置包含写入项', settings.all()['test_key'] === 'v1')
+  check('待办会议默认文字标签', settings.get('meeting_display_mode') === 'text')
+  const v8 = migrations.find((m) => m.version === 8)
+  check('v8 迁移已定义', v8?.name === 'meeting-display-and-summary-notice')
+  settings.set(
+    'summary_template',
+    JSON.stringify({
+      include_stats: true,
+      include_note: true,
+      sections: ['routine', 'meeting', 'report']
+    })
+  )
+  if (v8) getDb().exec(v8.up)
+  const upgradedTemplate = JSON.parse(settings.get('summary_template') ?? '{}') as {
+    sections?: string[]
+  }
+  check(
+    'v8 在会议参与后补入会议通知章节',
+    eq(upgradedTemplate.sections, ['routine', 'meeting', 'meeting_notice', 'report'])
+  )
+  if (v8) getDb().exec(v8.up)
+  check(
+    'v8 补章节迁移幂等',
+    eq(JSON.parse(settings.get('summary_template') ?? '{}').sections, [
+      'routine',
+      'meeting',
+      'meeting_notice',
+      'report'
+    ])
+  )
+  settings.set(
+    'summary_template',
+    JSON.stringify({ include_stats: true, include_note: true, sections: ['routine', 'report'] })
+  )
+  if (v8) getDb().exec(v8.up)
+  check(
+    'v8 无会议章节时追加到末尾',
+    eq(JSON.parse(settings.get('summary_template') ?? '{}').sections, [
+      'routine',
+      'report',
+      'meeting_notice'
+    ])
+  )
 
   console.log('【10.5】工作纲要草稿')
   check('未保存的周期返回 null', summaries.get('month', '2026-10') === null)

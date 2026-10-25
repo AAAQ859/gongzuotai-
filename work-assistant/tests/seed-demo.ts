@@ -187,6 +187,7 @@ mk({
   end_time: `${today} 10:30`,
   location: '天府B216会议室 / 双流连线',
   attendees: [
+    { contact_id: null, name: '我' },
     { contact_id: wang.id, name: '王主任' },
     { contact_id: zhang.id, name: '张经理' }
   ]
@@ -275,6 +276,7 @@ const routineDone = events.create({
   end_time: `${addDays(today, -12)} 10:30`,
   location: '天府B216会议室',
   attendees: [
+    { contact_id: null, name: '我' },
     { contact_id: wang.id, name: '王主任' },
     { contact_id: zhang.id, name: '张经理' }
   ]

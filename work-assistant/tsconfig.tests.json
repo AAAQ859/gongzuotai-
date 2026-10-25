@@ -25,5 +25,8 @@
     "src/renderer/src/utils/**/*",
     "tests/**/*"
   ],
-  "exclude": ["src/main/reminders/engine.ts"]
+  "exclude": [
+    "src/main/reminders/engine.ts",
+    "src/renderer/src/utils/meeting-display.ts"
+  ]
 }

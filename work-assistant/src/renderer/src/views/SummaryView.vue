@@ -98,6 +98,14 @@ const stats = computed(() => summaryStats(events.value, range.value, nowText()))
 const statCards = computed(() => [
   { key: 'completed', label: '完成工作项', value: stats.value.completed, unit: '项', icon: '✅', tone: 'green' },
   { key: 'meetings', label: '参加会议', value: stats.value.meetings, unit: '场', icon: '📅', tone: 'blue' },
+  {
+    key: 'meeting_notices',
+    label: '会议通知',
+    value: stats.value.meeting_notices,
+    unit: '场',
+    icon: '📨',
+    tone: 'cyan'
+  },
   { key: 'contacts', label: '对接事项', value: stats.value.contacts, unit: '项', icon: '🤝', tone: 'amber' },
   { key: 'reports', label: '输出报告', value: stats.value.reports, unit: '份', icon: '📄', tone: 'purple' }
 ])
@@ -636,7 +644,7 @@ function formatOf(format: SummaryFormat): { icon: string; name: string } {
         <div class="sm-tpl-group">
           <div class="sm-tpl-label">显示内容</div>
           <el-checkbox v-model="templateDraft.include_stats">
-            统计卡片(完成工作项 / 参加会议 / 对接事项 / 输出报告)
+            统计卡片(完成工作项 / 参加会议 / 会议通知 / 对接事项 / 输出报告)
           </el-checkbox>
           <el-checkbox v-model="templateDraft.include_note">备注</el-checkbox>
         </div>
@@ -796,7 +804,7 @@ function formatOf(format: SummaryFormat): { icon: string; name: string } {
 
 .sm-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -836,6 +844,10 @@ function formatOf(format: SummaryFormat): { icon: string; name: string } {
 
 .sm-stat--purple .sm-stat__icon {
   background: #f3f0ff;
+}
+
+.sm-stat--cyan .sm-stat__icon {
+  background: #e3fafc;
 }
 
 .sm-stat__value {
@@ -1310,6 +1322,10 @@ function formatOf(format: SummaryFormat): { icon: string; name: string } {
 @media (max-width: 1200px) {
   .sm-side {
     width: 196px;
+  }
+
+  .sm-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .sm-paper {

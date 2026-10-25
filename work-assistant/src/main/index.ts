@@ -85,6 +85,11 @@ function createWindow(): BrowserWindow {
   const screenshotPath = process.env.SCREENSHOT_PATH
   const screenshotRoute = process.env.SCREENSHOT_ROUTE
   const screenshotScript = process.env.SCREENSHOT_SCRIPT
+  // 可选 SCREENSHOT_PRINT_PDF:用系统打印同款 A4 版式额外导出 PDF,
+  // 用于验收「待办弹窗打印」是否按打印样式分页、是否只输出弹窗内容
+  const screenshotPrintPdf = process.env.SCREENSHOT_PRINT_PDF
+  // 可选 SCREENSHOT_MEDIA=print:截图前模拟打印媒体,直接检查 @media print 布局
+  const screenshotMedia = process.env.SCREENSHOT_MEDIA
   if (screenshotPath) {
     // 截图验收时窗口可能在后台被 Chromium 节流,导致 capturePage 取到打开弹窗前的旧帧
     win.webContents.setBackgroundThrottling(false)
@@ -100,6 +105,22 @@ function createWindow(): BrowserWindow {
           if (screenshotScript) {
             await win.webContents.executeJavaScript(screenshotScript)
             await new Promise((r) => setTimeout(r, 800))
+          }
+          if (screenshotMedia === 'print') {
+            win.webContents.debugger.attach('1.3')
+            await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+              media: 'print'
+            })
+          }
+          if (screenshotPrintPdf) {
+            const pdf = await win.webContents.printToPDF({
+              printBackground: true,
+              pageSize: 'A4',
+              landscape: false,
+              margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+            })
+            writeFileSync(screenshotPrintPdf, pdf)
+            console.log(`[print-pdf] saved to ${screenshotPrintPdf}`)
           }
           // 强制前台重绘后再截图,避免窗口被遮挡时返回旧帧
           win.show()

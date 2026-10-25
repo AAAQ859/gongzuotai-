@@ -88,7 +88,10 @@ const api = {
       ipcRenderer.invoke('app:setCloseToTray', enabled),
     setAutoLaunch: (enabled: boolean): Promise<TrayStatus> =>
       ipcRenderer.invoke('app:setAutoLaunch', enabled),
-    showWindow: (): Promise<TrayStatus> => ipcRenderer.invoke('app:showWindow')
+    showWindow: (): Promise<TrayStatus> => ipcRenderer.invoke('app:showWindow'),
+    /** 打印当前页面(今日/明日待办弹窗),由主进程弹出系统打印窗口 */
+    print: (): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> =>
+      ipcRenderer.invoke('app:print')
   },
 
   /** 数据备份 / 恢复(板块 10) */

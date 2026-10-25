@@ -258,5 +258,45 @@ ALTER TABLE events ADD COLUMN series_id INTEGER REFERENCES event_series(id) ON D
 CREATE INDEX idx_events_series ON events(series_id);
 CREATE INDEX idx_event_series_active ON event_series(active);
 `
+  },
+  {
+    version: 8,
+    name: 'meeting-display-and-summary-notice',
+    // 会议信息默认使用文字标签(用户可在设置页切回图标);
+    // 工作纲要新增「会议通知」章节:已有自定义模板一次性补入该章节
+    // (紧跟「会议参与」之后,保持与标准章节一致),之后用户仍可在模板设置中关闭。
+    // 空 sections 不补,避免破坏原有回退语义。
+    up: `
+INSERT OR IGNORE INTO settings (key, value) VALUES ('meeting_display_mode', 'text');
+
+UPDATE settings
+   SET value = json_set(value, '$.sections', json((
+     SELECT json_group_array(v) FROM (
+       SELECT json_each.value AS v, json_each.key AS k, 0 AS sub
+         FROM json_each(json_extract(settings.value, '$.sections'))
+       UNION ALL
+       SELECT 'meeting_notice', json_each.key, 1
+         FROM json_each(json_extract(settings.value, '$.sections'))
+        WHERE json_each.value = 'meeting'
+       UNION ALL
+       SELECT 'meeting_notice', json_array_length(json_extract(settings.value, '$.sections')) - 1, 1
+        WHERE NOT EXISTS (
+          SELECT 1
+            FROM json_each(json_extract(settings.value, '$.sections'))
+           WHERE json_each.value = 'meeting'
+        )
+       ORDER BY k, sub
+     )
+   )))
+ WHERE key = 'summary_template'
+   AND json_valid(value)
+   AND json_type(value, '$.sections') = 'array'
+   AND json_array_length(value, '$.sections') > 0
+   AND NOT EXISTS (
+     SELECT 1
+       FROM json_each(json_extract(settings.value, '$.sections'))
+      WHERE json_each.value = 'meeting_notice'
+   );
+`
   }
 ]

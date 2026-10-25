@@ -3,9 +3,15 @@
  * 统计口径、模板归一化、文本导出与月末判定。
  * 主进程(月末草稿/导出)与渲染层(预览)共用,保证口径一致。
  */
+import { SELF_ATTENDEE_NAME } from './types'
 
 export type SummaryMode = 'month' | 'week' | 'custom'
-export type SummarySectionKey = 'routine' | 'coordination' | 'meeting' | 'report'
+export type SummarySectionKey =
+  | 'routine'
+  | 'coordination'
+  | 'meeting'
+  | 'meeting_notice'
+  | 'report'
 
 export interface SummarySectionDef {
   key: SummarySectionKey
@@ -17,6 +23,7 @@ export const SUMMARY_SECTIONS: SummarySectionDef[] = [
   { key: 'routine', title: '例行工作', icon: '🔁' },
   { key: 'coordination', title: '对接协调', icon: '🤝' },
   { key: 'meeting', title: '会议参与', icon: '📅' },
+  { key: 'meeting_notice', title: '会议通知', icon: '📨' },
   { key: 'report', title: '报告与材料输出', icon: '📄' }
 ]
 
@@ -79,8 +86,10 @@ export interface SummaryDraft {
 export interface SummaryStats {
   /** 完成工作项(不含会议) */
   completed: number
-  /** 参加会议(已召开且未取消) */
+  /** 参加会议(参会人含「我」,已召开且未取消) */
   meetings: number
+  /** 会议通知(本人不参会,通知他人参加,已召开且未取消) */
+  meeting_notices: number
   /** 对接事项(已完成) */
   contacts: number
   /** 输出报告/材料(已完成) */
@@ -252,9 +261,17 @@ export function isCompletedInRange(
   return ev.status === 'done'
 }
 
-/** 章节归类:会议 > 报告材料 > 对接协调 > 例行工作 */
+/** 本人是否在会议参会人中(内置「我」,也兼容手动输入的「我」) */
+export function isSelfMeeting(ev: SummaryEventLike): boolean {
+  return (
+    ev.kind === 'meeting' &&
+    ev.attendees.some((a) => a.name.trim() === SELF_ATTENDEE_NAME)
+  )
+}
+
+/** 章节归类:会议参与/会议通知 > 报告材料 > 对接协调 > 例行工作 */
 export function sectionOfEvent(ev: SummaryEventLike): SummarySectionKey {
-  if (ev.kind === 'meeting') return 'meeting'
+  if (ev.kind === 'meeting') return isSelfMeeting(ev) ? 'meeting' : 'meeting_notice'
   const text = `${ev.category}${ev.title}`
   if (/报告|材料|总结|汇报/.test(text)) return 'report'
   if (ev.contact_id != null || /对接|协调|沟通/.test(text)) return 'coordination'
@@ -283,9 +300,11 @@ export function summaryStats(
   const selected = selectSummaryEvents(events, range, now)
   const doneTasks = selected.filter((e) => e.kind !== 'meeting')
   const doneAll = selected.filter((e) => e.status === 'done')
+  const meetings = selected.filter((e) => e.kind === 'meeting')
   return {
     completed: doneTasks.length,
-    meetings: selected.filter((e) => e.kind === 'meeting').length,
+    meetings: meetings.filter((e) => isSelfMeeting(e)).length,
+    meeting_notices: meetings.filter((e) => !isSelfMeeting(e)).length,
     contacts: doneAll.filter((e) => sectionOfEvent(e) === 'coordination').length,
     reports: doneAll.filter((e) => sectionOfEvent(e) === 'report').length
   }
@@ -297,16 +316,25 @@ export function autoDescription(
   contactName?: (id: number) => string | undefined
 ): string {
   const desc = ev.description.trim()
-  if (desc) return desc
   const d = parseDateStr(eventDate(ev))
   const day = d ? `${d.getMonth() + 1}月${d.getDate()}日` : ''
   if (ev.kind === 'meeting') {
     const time = (ev.start_time ?? '').slice(11, 16)
     const who = ev.attendees.map((a) => a.name).filter(Boolean)
+    if (!isSelfMeeting(ev)) {
+      // 非本人参会一律表述为「通知…参加…」,保留用户备注作为补充,避免被误读为本人参会
+      const targets = who.length ? who.join('、') : '参会人员'
+      const notice = `${day}${time ? ` ${time}` : ''}通知${targets}参加「${ev.title}」${
+        ev.location ? `(地点:${ev.location})` : ''
+      }`
+      return desc ? `${notice} — ${desc}` : notice
+    }
+    if (desc) return desc
     return `${day}${time ? ` ${time}` : ''}${ev.location ? `在${ev.location}` : ''}参加「${ev.title}」${
       who.length ? `,参会人员:${who.join('、')}` : ''
     }`
   }
+  if (desc) return desc
   const contact =
     ev.contact_id != null ? contactName?.(ev.contact_id) ?? ev.attendees[0]?.name : undefined
   return `${day}完成「${ev.title}」${contact ? `,对接:${contact}` : ''}`
@@ -421,7 +449,8 @@ export function renderSummaryText(payload: SummaryExportPayload): string {
   if (payload.template.include_stats) {
     lines.push(
       `完成工作项 ${payload.stats.completed} 项 · 参加会议 ${payload.stats.meetings} 场 · ` +
-        `对接事项 ${payload.stats.contacts} 项 · 输出报告 ${payload.stats.reports} 份`,
+        `会议通知 ${payload.stats.meeting_notices} 场 · 对接事项 ${payload.stats.contacts} 项 · ` +
+        `输出报告 ${payload.stats.reports} 份`,
       ''
     )
   }

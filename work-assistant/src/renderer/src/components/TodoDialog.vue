@@ -3,13 +3,14 @@
  * 今日/明日待办详情:会议区在上、事项区在下,两类绝不混排。
  * 会议按开始时间升序,突出名称、时间、地点、参会人/组织、备注,便于每天 17:00 截图汇报。
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Contact, WorkEvent } from '@shared/types'
 import { db } from '@/api/db'
 import { categoryColor } from '@/utils/dashboard'
 import { eventState } from '@/utils/calendar'
 import { weekdayLabel } from '@shared/recurrence'
+import { loadMeetingDisplayMode, meetingDisplayMode } from '@/utils/meeting-display'
 
 const props = defineProps<{
   modelValue: boolean
@@ -29,6 +30,19 @@ const emit = defineEmits<{
 const byStart = (a: WorkEvent, b: WorkEvent): number =>
   (a.start_time ?? '').localeCompare(b.start_time ?? '')
 
+const fullscreen = ref(false)
+const printing = ref(false)
+
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) {
+      fullscreen.value = false
+      loadMeetingDisplayMode(true)
+    }
+  }
+)
+
 const sortedMeetings = computed(() => [...props.meetings].sort(byStart))
 const openTasks = computed(() =>
   props.tasks.filter((e) => e.status !== 'done').sort(byStart)
@@ -40,6 +54,29 @@ const openTaskCount = computed(() => openTasks.value.length)
 const summaryText = computed(
   () => `${sortedMeetings.value.length} 场会议 · ${openTaskCount.value} 项未完成事项`
 )
+const isTextMode = computed(() => meetingDisplayMode.value === 'text')
+
+function fieldLabel(field: 'time' | 'location' | 'attendees' | 'note'): string {
+  if (isTextMode.value) {
+    return { time: '时间', location: '地点', attendees: '参会人', note: '备注' }[field]
+  }
+  return { time: '🕘', location: '📍', attendees: '👥', note: '📝' }[field]
+}
+
+async function printTodo(): Promise<void> {
+  if (printing.value) return
+  printing.value = true
+  try {
+    const res = await window.api.system.print()
+    if (!res.ok && !res.cancelled) {
+      ElMessage.warning(res.error ?? '无法打开打印窗口')
+    }
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '打印失败')
+  } finally {
+    printing.value = false
+  }
+}
 
 function nowText(): string {
   const d = props.now
@@ -84,12 +121,25 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
   <el-dialog
     :model-value="modelValue"
     :title="title"
+    :fullscreen="fullscreen"
     width="760px"
     top="4vh"
     append-to-body
     class="todo-dialog"
     @update:model-value="emit('update:modelValue', $event)"
   >
+    <template #header>
+      <div class="todo-dialog__header">
+        <span class="todo-dialog__title">{{ title }}</span>
+        <span class="todo-dialog__actions">
+          <el-button size="small" text @click="fullscreen = !fullscreen">
+            {{ fullscreen ? '还原' : '全屏' }}
+          </el-button>
+          <el-button size="small" text :loading="printing" @click="printTodo">打印</el-button>
+        </span>
+      </div>
+    </template>
+
     <div class="todo">
       <div class="todo__summary">
         <span class="todo__summary-main">{{ summaryText }}</span>
@@ -131,14 +181,24 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
               </div>
 
               <div class="meeting-card__meta">
-                <span class="meeting-card__meta-item">🕘 {{ timeRange(ev) }}</span>
-                <span v-if="ev.location" class="meeting-card__meta-item">📍 {{ ev.location }}</span>
+                <span class="meeting-card__meta-item">
+                  <span class="meeting-card__meta-label">{{ fieldLabel('time') }}</span>
+                  {{ timeRange(ev) }}
+                </span>
+                <span v-if="ev.location" class="meeting-card__meta-item">
+                  <span class="meeting-card__meta-label">{{ fieldLabel('location') }}</span>
+                  {{ ev.location }}
+                </span>
                 <span v-if="ev.attendees.length" class="meeting-card__meta-item">
-                  👥 {{ ev.attendees.map((a) => a.name).join('、') }}
+                  <span class="meeting-card__meta-label">{{ fieldLabel('attendees') }}</span>
+                  {{ ev.attendees.map((a) => a.name).join('、') }}
                 </span>
               </div>
 
-              <div v-if="ev.description" class="meeting-card__note">📝 {{ ev.description }}</div>
+              <div v-if="ev.description" class="meeting-card__note">
+                <span class="meeting-card__meta-label">{{ fieldLabel('note') }}</span>
+                {{ ev.description }}
+              </div>
             </div>
           </article>
         </div>
@@ -224,10 +284,42 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 </template>
 
 <style scoped>
+.todo-dialog__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 24px;
+}
+
+.todo-dialog__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--wa-ink);
+}
+
+.todo-dialog__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
 .todo {
   max-height: 70vh;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+:global(.todo-dialog.is-fullscreen .todo) {
+  max-height: calc(100vh - 150px);
+}
+
+.meeting-card__meta-label {
+  margin-right: 4px;
+  color: var(--wa-text-muted);
+  font-weight: 500;
 }
 
 .todo__summary {

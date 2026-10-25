@@ -41,6 +41,10 @@ import EventDetailDialog from '@/components/EventDetailDialog.vue'
 import EventEditorDialog from '@/components/EventEditorDialog.vue'
 import CalendarManageDialog from '@/components/CalendarManageDialog.vue'
 import MeetingReminderDialog from '@/components/MeetingReminderDialog.vue'
+import {
+  loadMeetingDisplayMode,
+  meetingDisplayMode
+} from '@/utils/meeting-display'
 
 // ---------- 数据 ----------
 const events = ref<WorkEvent[]>([])
@@ -67,6 +71,7 @@ async function load(): Promise<void> {
 
 onMounted(() => {
   load()
+  loadMeetingDisplayMode(true)
   ticker = setInterval(() => {
     now.value = new Date()
   }, 60_000)
@@ -95,6 +100,15 @@ const anchorStr = computed(() => fmtDate(anchor.value))
 const title = computed(() => rangeTitle(view.value, anchor.value))
 const range = computed(() => viewRange(view.value, anchor.value))
 const isToday = computed(() => anchorStr.value === todayStr)
+const isTextMode = computed(() => meetingDisplayMode.value === 'text')
+
+function attendeeNames(ev: WorkEvent): string {
+  return ev.attendees.map((a) => a.name).join('、')
+}
+
+function meetingStatusText(ev: WorkEvent): string {
+  return eventState(ev).label
+}
 
 function countOf(calId: number): number {
   return meetings.value.filter(
@@ -312,12 +326,21 @@ function openDay(dateStr: string): void {
         >
           <div class="mtg-block__title">{{ b.ev.title }}</div>
           <div class="mtg-block__sub">
-            {{ fmtTimeRange(b.ev) }}
-            <template v-if="b.ev.location">{{ locationIcon(b.ev.location) }} {{ b.ev.location }}</template>
-            <template v-if="b.ev.attendees.length">👥 {{ b.ev.attendees.length }}人</template>
+            <template v-if="isTextMode">
+              <span>时间 {{ fmtTimeRange(b.ev) }}</span>
+              <span v-if="b.ev.location"> · 地点 {{ b.ev.location }}</span>
+              <span v-if="b.ev.attendees.length"> · 参会人 {{ b.ev.attendees.length }} 人</span>
+            </template>
+            <template v-else>
+              {{ fmtTimeRange(b.ev) }}
+              <template v-if="b.ev.location">{{ locationIcon(b.ev.location) }} {{ b.ev.location }}</template>
+              <template v-if="b.ev.attendees.length">👥 {{ b.ev.attendees.length }}人</template>
+            </template>
           </div>
         </div>
-        <div v-if="!timelineBlocks.length" class="mtg-timeline__empty">🎉 当天没有会议</div>
+        <div v-if="!timelineBlocks.length" class="mtg-timeline__empty">
+          {{ isTextMode ? '当天没有会议' : '🎉 当天没有会议' }}
+        </div>
       </div>
 
       <!-- 周视图 -->
@@ -345,7 +368,9 @@ function openDay(dateStr: string): void {
             >
               <span class="mtg-week__time">{{ fmtTimeRange(ev) }}</span>
               <span class="mtg-week__title">{{ ev.title }}</span>
-              <span v-if="ev.location" class="mtg-week__loc">{{ locationIcon(ev.location) }} {{ ev.location }}</span>
+              <span v-if="ev.location" class="mtg-week__loc">
+                {{ isTextMode ? '地点 ' : locationIcon(ev.location) + ' ' }}{{ ev.location }}
+              </span>
             </button>
           </div>
         </div>
@@ -401,14 +426,18 @@ function openDay(dateStr: string): void {
 
       <div class="mtg-panel__next">
         <template v-if="rightNext">
-          <span class="mtg-panel__next-label">⏰ 下一场会议</span>
+          <span class="mtg-panel__next-label">
+            {{ isTextMode ? '下一场会议' : '⏰ 下一场会议' }}
+          </span>
           <span class="mtg-panel__next-title">{{ rightNext.ev.title }}</span>
           <span class="mtg-panel__next-time">
             {{ rightNext.ev.start_time!.slice(11) }} 开始 · {{ rightNext.text }}
           </span>
         </template>
         <template v-else>
-          <span class="mtg-panel__next-label">⏰ 下一场会议</span>
+          <span class="mtg-panel__next-label">
+            {{ isTextMode ? '下一场会议' : '⏰ 下一场会议' }}
+          </span>
           <span class="mtg-panel__next-empty">{{ isToday ? '今日会议已全部结束' : '当天暂无后续会议' }}</span>
         </template>
       </div>
@@ -421,23 +450,39 @@ function openDay(dateStr: string): void {
           class="mtg-panel__item"
           @click="openDetail(ev)"
         >
-          <span class="mtg-panel__item-state" :class="`is-${eventState(ev).key.replace('_', '-')}`">
+          <span
+            v-if="!isTextMode"
+            class="mtg-panel__item-state"
+            :class="`is-${eventState(ev).key.replace('_', '-')}`"
+          >
             {{ eventState(ev).key === 'ended' || eventState(ev).key === 'done' ? '✓' : '·' }}
           </span>
           <span class="mtg-panel__item-main">
             <span class="mtg-panel__item-time">
-              {{ fmtTimeRange(ev) }}
-              <span v-if="eventState(ev).key === 'ended'" class="mtg-panel__ended">· 已结束</span>
+              <template v-if="isTextMode">
+                时间 {{ fmtTimeRange(ev) }} · {{ meetingStatusText(ev) }}
+              </template>
+              <template v-else>
+                {{ fmtTimeRange(ev) }}
+                <span v-if="eventState(ev).key === 'ended'" class="mtg-panel__ended">· 已结束</span>
+              </template>
             </span>
             <span class="mtg-panel__item-title">{{ ev.title }}</span>
             <span class="mtg-panel__item-sub">
-              <template v-if="ev.location">{{ locationIcon(ev.location) }} {{ ev.location }}</template>
-              <template v-if="ev.attendees.length">
-                参会:{{ ev.attendees.map((a) => a.name).join('、') }}
+              <template v-if="isTextMode">
+                <template v-if="ev.location">地点 {{ ev.location }}</template>
+                <template v-if="ev.location && ev.attendees.length"> · </template>
+                <template v-if="ev.attendees.length">参会人 {{ attendeeNames(ev) }}</template>
+              </template>
+              <template v-else>
+                <template v-if="ev.location">{{ locationIcon(ev.location) }} {{ ev.location }}</template>
+                <template v-if="ev.attendees.length">
+                  参会:{{ attendeeNames(ev) }}
+                </template>
               </template>
             </span>
           </span>
-          <span v-if="ev.attendees.length" class="mtg-panel__avatars">
+          <span v-if="!isTextMode && ev.attendees.length" class="mtg-panel__avatars">
             <span
               v-for="a in ev.attendees.slice(0, 3)"
               :key="a.contact_id ?? a.name"
@@ -467,7 +512,9 @@ function openDay(dateStr: string): void {
             <span class="mtg-panel__item-time">{{ fmtTimeRange(ev) }}</span>
             <span class="mtg-panel__item-title">{{ ev.title }}</span>
             <span class="mtg-panel__item-sub">
-              <template v-if="ev.location">{{ locationIcon(ev.location) }} {{ ev.location }}</template>
+              <template v-if="ev.location">
+                {{ isTextMode ? '地点 ' : locationIcon(ev.location) + ' ' }}{{ ev.location }}
+              </template>
               <template v-if="ev.description">{{ ev.description }}</template>
             </span>
           </span>

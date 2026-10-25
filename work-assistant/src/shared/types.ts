@@ -29,6 +29,9 @@ export interface AttendeeRef {
   name: string
 }
 
+/** 内置参会人「我」:会议表单直接选择,工作纲要据此区分本人参会与通知他人参会 */
+export const SELF_ATTENDEE_NAME = '我'
+
 export interface WorkEvent {
   id: number
   calendar_id: number | null

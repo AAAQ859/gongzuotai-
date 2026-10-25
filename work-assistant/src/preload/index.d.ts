@@ -47,6 +47,7 @@ export interface Api {
     setCloseToTray: (enabled: boolean) => Promise<TrayStatus>
     setAutoLaunch: (enabled: boolean) => Promise<TrayStatus>
     showWindow: () => Promise<TrayStatus>
+    print: () => Promise<{ ok: boolean; cancelled?: boolean; error?: string }>
   }
   backup: {
     create: () => Promise<BackupCreateResult | null>
