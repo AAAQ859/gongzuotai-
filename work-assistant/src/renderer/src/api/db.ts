@@ -12,6 +12,7 @@ import type {
   EventStatus,
   FileBoard,
   Reminder,
+  TaskType,
   WorkEvent
 } from '@shared/types'
 import type { SummaryContent, SummaryDraft, SummaryMode } from '@shared/summary'
@@ -41,10 +42,14 @@ export interface CreateEventInput {
   attendees?: { contact_id: number | null; name: string }[]
   status?: EventStatus
   category?: string
+  /** 事项类型:临时/例行(会议固定临时) */
+  task_type?: TaskType
   contact_id?: number | null
   reminder_enabled?: number
   reminder_minutes?: number | null
 }
+
+export type SeriesScope = 'one' | 'series'
 
 export const db = {
   calendars: {
@@ -61,9 +66,12 @@ export const db = {
       invoke(DB_ACTIONS.eventsList, filter ?? {}),
     get: (id: number): Promise<WorkEvent> => invoke(DB_ACTIONS.eventsGet, { id }),
     create: (input: CreateEventInput): Promise<WorkEvent> => invoke(DB_ACTIONS.eventsCreate, input),
-    update: (id: number, patch: Partial<CreateEventInput>): Promise<WorkEvent> =>
-      invoke(DB_ACTIONS.eventsUpdate, { id, ...patch }),
-    remove: (id: number): Promise<void> => invoke(DB_ACTIONS.eventsRemove, { id }),
+    update: (
+      id: number,
+      patch: Partial<CreateEventInput> & { scope?: SeriesScope }
+    ): Promise<WorkEvent> => invoke(DB_ACTIONS.eventsUpdate, { id, ...patch }),
+    remove: (id: number, scope: SeriesScope = 'one'): Promise<void> =>
+      invoke(DB_ACTIONS.eventsRemove, { id, scope }),
     setStatus: (id: number, status: EventStatus): Promise<WorkEvent> =>
       invoke(DB_ACTIONS.eventsSetStatus, { id, status })
   },

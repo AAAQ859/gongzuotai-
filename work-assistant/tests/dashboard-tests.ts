@@ -78,6 +78,8 @@ function mk(partial: Partial<WorkEvent> & { title?: string }): WorkEvent {
     attendees: [],
     status: 'todo',
     category: '',
+    task_type: 'temporary',
+    series_id: null,
     tags: [],
     contact_id: null,
     reminder_enabled: 1,
@@ -124,6 +126,26 @@ check(
 check('待对接 = 1(排除已完成/远期)', s.followups.length === 1 && s.followups[0].id === f1.id, `实际 ${s.followups.length}`)
 check('今日日程 = 9', s.todayEvents.length === 9, `实际 ${s.todayEvents.length}`)
 check('关注数 = 今日日程 + 逾期', s.focusCount === s.todayEvents.length + s.overdue.length, `实际 ${s.focusCount}`)
+
+console.log('【3b】今日/明日待办(会议与事项分列)')
+check('明日日期正确', s.tomorrow === '2026-10-22', s.tomorrow)
+check('今日事项 = 6(含已完成,排除已取消)', s.todayTasks.length === 6, `实际 ${s.todayTasks.length}`)
+check('今日未完成事项 = 5', s.todayTasks.filter((e) => e.status !== 'done').length === 5)
+check('今日事项不含已取消', !s.todayTasks.some((e) => e.id === c1.id))
+check('今日事项按开始时间升序', s.todayTasks.every((e, i) => i === 0 || (s.todayTasks[i - 1].start_time ?? '') <= (e.start_time ?? '')))
+check('明日事项 = 0(按开始日期归属)', s.tomorrowTasks.length === 0, `实际 ${s.tomorrowTasks.length}`)
+check('明日会议 = 1 且为指定会议', s.tomorrowMeetings.length === 1 && s.tomorrowMeetings[0].id === m3.id)
+check('今日会议仍为 2', s.todayMeetings.length === 2)
+const cancelledMeeting = mk({
+  kind: 'meeting',
+  title: '已取消会议',
+  status: 'cancelled',
+  start_time: D('2026-10-21 11:00'),
+  end_time: D('2026-10-21 12:00')
+})
+const sCancelled = computeSummary([cancelledMeeting], NOW)
+check('已取消会议不计入今日待办', sCancelled.todayMeetings.length === 0)
+check('已取消会议不计入下一场会议', sCancelled.nextMeeting === undefined)
 
 console.log('【4】截止标签与取色')
 check('今日截止', deadlineLabel('2026-10-21 23:00', NOW) === '今日截止')

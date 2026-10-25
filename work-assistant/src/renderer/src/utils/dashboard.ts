@@ -72,11 +72,18 @@ export function roundToNextHalfHour(d: Date): Date {
 
 export interface DashboardSummary {
   today: string
+  tomorrow: string
   nowDt: string
   weekStart: string
   weekEnd: string
-  /** 今日会议(按开始时间排序) */
+  /** 今日会议(不含已取消,按开始时间排序) */
   todayMeetings: WorkEvent[]
+  /** 明日会议(不含已取消,按开始时间排序) */
+  tomorrowMeetings: WorkEvent[]
+  /** 今日事项(不含已取消,含已完成,按开始时间排序) */
+  todayTasks: WorkEvent[]
+  /** 明日事项(不含已取消,含已完成,按开始时间排序) */
+  tomorrowTasks: WorkEvent[]
   /** 下一场未开始的会议 */
   nextMeeting: WorkEvent | undefined
   /** 本周待办(周一起步的所有事项类) */
@@ -97,6 +104,7 @@ export interface DashboardSummary {
 
 export function computeSummary(events: WorkEvent[], now: Date = new Date()): DashboardSummary {
   const today = fmtDate(now)
+  const tomorrow = addDays(today, 1)
   const nowDt = fmtDateTime(now)
   const weekStart = fmtDate(startOfWeek(now))
   const weekEnd = addDays(weekStart, 6)
@@ -110,9 +118,27 @@ export function computeSummary(events: WorkEvent[], now: Date = new Date()): Das
   const byEnd = (a: WorkEvent, b: WorkEvent): number =>
     (a.end_time ?? '').localeCompare(b.end_time ?? '')
 
-  const todayMeetings = events
-    .filter((e) => e.kind === 'meeting' && e.start_time?.slice(0, 10) === today)
-    .sort(byStart)
+  const meetingsOn = (date: string): WorkEvent[] =>
+    events
+      .filter(
+        (e) =>
+          e.kind === 'meeting' &&
+          e.status !== 'cancelled' &&
+          e.start_time?.slice(0, 10) === date
+      )
+      .sort(byStart)
+  const tasksOn = (date: string): WorkEvent[] =>
+    events
+      .filter(
+        (e) =>
+          e.kind === 'task' && e.status !== 'cancelled' && e.start_time?.slice(0, 10) === date
+      )
+      .sort(byStart)
+
+  const todayMeetings = meetingsOn(today)
+  const tomorrowMeetings = meetingsOn(tomorrow)
+  const todayTasks = tasksOn(today)
+  const tomorrowTasks = tasksOn(tomorrow)
   const nextMeeting = todayMeetings.find((e) => e.start_time && e.start_time >= nowDt)
 
   const weekTasks = events.filter(
@@ -145,10 +171,14 @@ export function computeSummary(events: WorkEvent[], now: Date = new Date()): Das
 
   return {
     today,
+    tomorrow,
     nowDt,
     weekStart,
     weekEnd,
     todayMeetings,
+    tomorrowMeetings,
+    todayTasks,
+    tomorrowTasks,
     nextMeeting,
     weekTasks,
     weekDone,

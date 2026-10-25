@@ -1,5 +1,5 @@
 import type { SQLInputValue } from 'node:sqlite'
-import type { AttendeeRef, EventKind, EventStatus, WorkEvent } from '@shared/types'
+import type { AttendeeRef, EventKind, EventStatus, TaskType, WorkEvent } from '@shared/types'
 import { asRow, asRows, getDb } from '../database'
 import { segmentForFts } from '../fts'
 
@@ -90,6 +90,16 @@ export function get(id: number): WorkEvent {
   return mapRow(row)
 }
 
+/** 某个例行系列已生成的全部期次(按开始时间排序) */
+export function listBySeries(seriesId: number): WorkEvent[] {
+  const rows = asRows<Row>(
+    getDb()
+      .prepare('SELECT * FROM events WHERE series_id = ? ORDER BY start_time, id')
+      .all(seriesId)
+  )
+  return rows.map(mapRow)
+}
+
 export interface EventInput {
   calendar_id?: number | null
   kind?: EventKind
@@ -102,6 +112,10 @@ export interface EventInput {
   attendees?: AttendeeRef[]
   status?: EventStatus
   category?: string
+  /** 事项类型:临时/例行;会议传 temporary(默认) */
+  task_type?: TaskType
+  /** 例行事项所属系列 id(仅系列服务内部使用) */
+  series_id?: number | null
   tags?: string[]
   contact_id?: number | null
   reminder_enabled?: number
@@ -116,9 +130,9 @@ export function create(input: EventInput): WorkEvent {
   const info = db
     .prepare(
       `INSERT INTO events (calendar_id, kind, title, description, start_time, end_time, all_day,
-        location, attendees, status, category, tags, contact_id, reminder_enabled,
+        location, attendees, status, category, task_type, series_id, tags, contact_id, reminder_enabled,
         reminder_minutes, reminder_days, related_files, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       input.calendar_id ?? null,
@@ -132,6 +146,8 @@ export function create(input: EventInput): WorkEvent {
       JSON.stringify(input.attendees ?? []),
       input.status ?? 'todo',
       input.category ?? '',
+      input.task_type ?? 'temporary',
+      input.series_id ?? null,
       JSON.stringify(input.tags ?? []),
       input.contact_id ?? null,
       input.reminder_enabled ?? 1,
@@ -160,6 +176,8 @@ export function update(id: number, patch: Partial<EventInput>): WorkEvent {
     attendees: patch.attendees ?? current.attendees,
     status: patch.status ?? current.status,
     category: patch.category ?? current.category,
+    task_type: patch.task_type ?? current.task_type,
+    series_id: patch.series_id !== undefined ? patch.series_id : current.series_id,
     tags: patch.tags ?? current.tags,
     contact_id: patch.contact_id !== undefined ? patch.contact_id : current.contact_id,
     reminder_enabled: patch.reminder_enabled ?? current.reminder_enabled,
@@ -171,9 +189,10 @@ export function update(id: number, patch: Partial<EventInput>): WorkEvent {
   }
   db.prepare(
     `UPDATE events SET calendar_id = ?, kind = ?, title = ?, description = ?, start_time = ?,
-      end_time = ?, all_day = ?, location = ?, attendees = ?, status = ?, category = ?, tags = ?,
-      contact_id = ?, reminder_enabled = ?, reminder_minutes = ?, reminder_days = ?,
-      related_files = ?, sort_order = ?, updated_at = datetime('now','localtime')
+      end_time = ?, all_day = ?, location = ?, attendees = ?, status = ?, category = ?,
+      task_type = ?, series_id = ?, tags = ?, contact_id = ?, reminder_enabled = ?,
+      reminder_minutes = ?, reminder_days = ?, related_files = ?, sort_order = ?,
+      updated_at = datetime('now','localtime')
      WHERE id = ?`
   ).run(
     next.calendar_id,
@@ -187,6 +206,8 @@ export function update(id: number, patch: Partial<EventInput>): WorkEvent {
     JSON.stringify(next.attendees),
     next.status,
     next.category,
+    next.task_type,
+    next.series_id,
     JSON.stringify(next.tags),
     next.contact_id,
     next.reminder_enabled,

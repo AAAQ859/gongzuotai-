@@ -1,24 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import type { Calendar, Contact, EventKind, WorkEvent } from '@shared/types'
+import type { Calendar, Contact, WorkEvent } from '@shared/types'
 import { db } from '@/api/db'
 import {
   buildMonthGrid,
   categoryColor,
   computeSummary,
-  deadlineLabel,
-  fmtDateTime,
   fmtDate,
   greeting,
   eventColorsByDay,
-  pad2,
-  roundToNextHalfHour,
   weekdayText
 } from '@/utils/dashboard'
 import WorkStats from '@/components/WorkStats.vue'
+import EventEditorDialog from '@/components/EventEditorDialog.vue'
+import TodoDialog from '@/components/TodoDialog.vue'
 
 const router = useRouter()
 
@@ -37,6 +35,23 @@ const focusText = computed(() => {
   const n = summary.value.focusCount
   return n > 0 ? `今天有 ${n} 件事需要关注` : '今天没有需要关注的事 🎉'
 })
+
+const categories = computed(() => {
+  const set = new Set<string>()
+  for (const e of events.value) if (e.category) set.add(e.category)
+  return [...set]
+})
+
+function openTaskCount(list: WorkEvent[]): number {
+  return list.filter((e) => e.status !== 'done').length
+}
+
+const todayTaskOpen = computed(() => openTaskCount(summary.value.todayTasks))
+const tomorrowTaskOpen = computed(() => openTaskCount(summary.value.tomorrowTasks))
+const todayTodoCount = computed(() => todayTaskOpen.value + summary.value.todayMeetings.length)
+const tomorrowTodoCount = computed(
+  () => tomorrowTaskOpen.value + summary.value.tomorrowMeetings.length
+)
 
 const todayFiltered = computed(() => {
   const k = keyword.value.trim().toLowerCase()
@@ -98,79 +113,29 @@ function shiftMonth(delta: number): void {
   calYear.value = y
 }
 
-// ---------- 快捷新增 ----------
-const dialogVisible = ref(false)
-const saving = ref(false)
-const form = reactive({
-  kind: 'task' as EventKind,
-  title: '',
-  calendar_id: null as number | null,
-  category: '',
-  start_time: '',
-  end_time: '',
-  location: '',
-  contact_id: null as number | null
-})
+// ---------- 新增 / 待办详情 ----------
+const editorVisible = ref(false)
 
-const categoryOptions = computed(() => {
-  const set = new Set<string>()
-  for (const e of events.value) if (e.category) set.add(e.category)
-  return [...set].map((c) => ({ value: c, label: c }))
-})
+function openEditor(): void {
+  editorVisible.value = true
+}
 
-const calendarOptions = computed(() =>
-  calendars.value
-    .filter((c) => (form.kind === 'meeting' ? c.kind === 'meeting' : c.kind === 'schedule'))
-    .map((c) => ({ value: c.id, label: c.name }))
+const todoVisible = ref(false)
+const todoMode = ref<'today' | 'tomorrow'>('today')
+const todoLabel = computed(() => (todoMode.value === 'today' ? '今日' : '明日'))
+const todoDate = computed(() =>
+  todoMode.value === 'today' ? summary.value.today : summary.value.tomorrow
+)
+const todoTasks = computed(() =>
+  todoMode.value === 'today' ? summary.value.todayTasks : summary.value.tomorrowTasks
+)
+const todoMeetings = computed(() =>
+  todoMode.value === 'today' ? summary.value.todayMeetings : summary.value.tomorrowMeetings
 )
 
-function openDialog(): void {
-  const start = roundToNextHalfHour(new Date())
-  const end = new Date(start.getTime() + 60 * 60 * 1000)
-  form.kind = 'task'
-  form.title = ''
-  form.calendar_id = calendarOptions.value[0]?.value ?? null
-  form.category = ''
-  form.start_time = fmtDateTime(start)
-  form.end_time = fmtDateTime(end)
-  form.location = ''
-  form.contact_id = null
-  dialogVisible.value = true
-}
-
-function onKindChange(): void {
-  form.calendar_id = calendarOptions.value[0]?.value ?? null
-}
-
-async function submit(): Promise<void> {
-  if (!form.title.trim()) {
-    ElMessage.warning('请输入标题')
-    return
-  }
-  if (form.start_time && form.end_time && form.end_time < form.start_time) {
-    ElMessage.warning('结束时间不能早于开始时间')
-    return
-  }
-  saving.value = true
-  try {
-    await db.events.create({
-      kind: form.kind,
-      title: form.title.trim(),
-      calendar_id: form.calendar_id,
-      category: form.category.trim() || undefined,
-      start_time: form.start_time || null,
-      end_time: form.end_time || null,
-      location: form.location.trim() || undefined,
-      contact_id: form.contact_id
-    })
-    dialogVisible.value = false
-    ElMessage.success('已新增')
-    await load()
-  } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : '新增失败')
-  } finally {
-    saving.value = false
-  }
+function openTodos(mode: 'today' | 'tomorrow'): void {
+  todoMode.value = mode
+  todoVisible.value = true
 }
 
 // ---------- 展示辅助 ----------
@@ -188,10 +153,6 @@ function subText(ev: WorkEvent): string {
     if (c) parts.push(`对接人:${c.name}`)
   }
   return parts.join(' · ')
-}
-
-function contactOf(id: number | null): Contact | undefined {
-  return contacts.value.find((c) => c.id === id)
 }
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
@@ -213,23 +174,29 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
           clearable
           :prefix-icon="Search"
         />
-        <el-button type="primary" :icon="Plus" @click="openDialog">新增</el-button>
+        <el-button type="primary" :icon="Plus" @click="openEditor">新增</el-button>
       </div>
     </div>
 
-    <!-- 四个关键指标卡 -->
+    <!-- 四个关键指标卡:今日/明日待办优先,删除待对接 -->
     <div class="dash-cards">
-      <div class="stat-card" @click="router.push('/meetings')">
-        <div class="stat-card__icon stat-card__icon--meeting">🤝</div>
+      <div class="stat-card stat-card--today" @click="openTodos('today')">
+        <div class="stat-card__icon stat-card__icon--today">📋</div>
         <div class="stat-card__body">
-          <div class="stat-card__num">{{ summary.todayMeetings.length }}</div>
-          <div class="stat-card__label">今日会议</div>
+          <div class="stat-card__num">{{ todayTodoCount }}</div>
+          <div class="stat-card__label">今日待办</div>
           <div class="stat-card__sub">
-            {{
-              summary.nextMeeting
-                ? `下一场 ${summary.nextMeeting.start_time!.slice(11)} 开始`
-                : '今天没有后续会议'
-            }}
+            {{ summary.todayMeetings.length }} 场会议 · {{ todayTaskOpen }} 项事项
+          </div>
+        </div>
+      </div>
+      <div class="stat-card stat-card--tomorrow" @click="openTodos('tomorrow')">
+        <div class="stat-card__icon stat-card__icon--tomorrow">📅</div>
+        <div class="stat-card__body">
+          <div class="stat-card__num">{{ tomorrowTodoCount }}</div>
+          <div class="stat-card__label">明日待办</div>
+          <div class="stat-card__sub">
+            {{ summary.tomorrowMeetings.length }} 场会议 · {{ tomorrowTaskOpen }} 项事项
           </div>
         </div>
       </div>
@@ -249,14 +216,6 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
           <div class="stat-card__sub">
             {{ summary.overdue.length > 0 ? `含逾期 ${summary.overdue.length} 项` : '3天内到期' }}
           </div>
-        </div>
-      </div>
-      <div class="stat-card" @click="router.push('/calendar')">
-        <div class="stat-card__icon stat-card__icon--follow">📥</div>
-        <div class="stat-card__body">
-          <div class="stat-card__num">{{ summary.followups.length }}</div>
-          <div class="stat-card__label">待对接</div>
-          <div class="stat-card__sub">{{ summary.followups.length ? '材料待跟进' : '暂无待对接' }}</div>
         </div>
       </div>
     </div>
@@ -338,111 +297,34 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel__head">
-            <span class="panel__title">待对接事项</span>
-            <el-link type="primary" :underline="false" @click="router.push('/calendar')">
-              全部 →
-            </el-link>
-          </div>
-          <div v-if="summary.followups.length" class="follow-list">
-            <div v-for="ev in summary.followups" :key="ev.id" class="follow-item">
-              <div
-                class="follow-item__avatar"
-                :style="{ background: contactOf(ev.contact_id)?.avatar_color ?? '#CED4DA' }"
-              >
-                {{ contactOf(ev.contact_id)?.name?.slice(0, 1) ?? '—' }}
-              </div>
-              <div class="follow-item__main">
-                <div class="follow-item__title">{{ ev.title }}</div>
-                <div v-if="contactOf(ev.contact_id)" class="follow-item__meta">
-                  {{ contactOf(ev.contact_id)!.name }} · {{ contactOf(ev.contact_id)!.department }}
-                </div>
-              </div>
-              <span
-                class="follow-item__deadline"
-                :class="{ 'is-overdue': ev.end_time && ev.end_time < summary.nowDt }"
-              >
-                {{ ev.end_time ? deadlineLabel(ev.end_time, now) : '' }}
-              </span>
-            </div>
-          </div>
-          <div v-else class="panel__empty">暂无待对接事项</div>
-        </div>
       </div>
     </div>
 
     <!-- 工作统计图表(板块 10):完成趋势 / 事项分类 / 对接人活跃度 -->
     <WorkStats :events="events" :contacts="contacts" :now="now" />
 
-    <!-- 快捷新增对话框 -->
-    <el-dialog v-model="dialogVisible" title="新增日程" width="480px" append-to-body>
-      <el-form label-width="80px" @submit.prevent>
-        <el-form-item label="类型">
-          <el-radio-group v-model="form.kind" @change="onKindChange">
-            <el-radio-button value="task">事项</el-radio-button>
-            <el-radio-button value="meeting">会议</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="标题" required>
-          <el-input v-model="form.title" placeholder="要做什么?" maxlength="100" />
-        </el-form-item>
-        <el-form-item :label="form.kind === 'meeting' ? '会议日历' : '所属日历'">
-          <el-select v-model="form.calendar_id" placeholder="选择日历分类" style="width: 100%">
-            <el-option v-for="c in calendarOptions" :key="c.value" :label="c.label" :value="c.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="分类标签">
-          <el-select
-            v-model="form.category"
-            filterable
-            allow-create
-            default-first-option
-            placeholder="如:例会 / 对接 / 报告(可自定义)"
-            style="width: 100%"
-          >
-            <el-option v-for="c in categoryOptions" :key="c.value" :label="c.label" :value="c.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="开始时间">
-          <el-date-picker
-            v-model="form.start_time"
-            type="datetime"
-            value-format="YYYY-MM-DD HH:mm"
-            format="YYYY-MM-DD HH:mm"
-            placeholder="选择开始时间"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="结束时间">
-          <el-date-picker
-            v-model="form.end_time"
-            type="datetime"
-            value-format="YYYY-MM-DD HH:mm"
-            format="YYYY-MM-DD HH:mm"
-            placeholder="选择结束时间"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item v-if="form.kind === 'meeting'" label="地点">
-          <el-input v-model="form.location" placeholder="会议室 / 线上会议" />
-        </el-form-item>
-        <el-form-item v-if="form.kind === 'task'" label="对接人">
-          <el-select v-model="form.contact_id" clearable placeholder="选择联系人(可选)" style="width: 100%">
-            <el-option
-              v-for="c in contacts"
-              :key="c.id"
-              :label="`${c.name} · ${c.department}`"
-              :value="c.id"
-            />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submit">保存</el-button>
-      </template>
-    </el-dialog>
+    <!-- 新增/编辑:与日历、会议页共用同一套字段 -->
+    <EventEditorDialog
+      v-model="editorVisible"
+      :event="null"
+      :default-date="todayStr"
+      :calendars="calendars"
+      :contacts="contacts"
+      :categories="categories"
+      @saved="load"
+    />
+
+    <!-- 今日/明日待办详情:会议在上、事项在下 -->
+    <TodoDialog
+      v-model="todoVisible"
+      :label="todoLabel"
+      :date="todoDate"
+      :tasks="todoTasks"
+      :meetings="todoMeetings"
+      :contacts="contacts"
+      :now="now"
+      @changed="load"
+    />
   </div>
 </template>
 
@@ -523,17 +405,23 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
   flex-shrink: 0;
 }
 
-.stat-card__icon--meeting {
-  background: #fdf0f3;
+.stat-card--today {
+  border-color: #c5e3f8;
+}
+.stat-card--tomorrow {
+  border-color: #dcd2f7;
+}
+.stat-card__icon--today {
+  background: #e7f5ff;
+}
+.stat-card__icon--tomorrow {
+  background: #f3f0ff;
 }
 .stat-card__icon--todo {
-  background: #e9f5ff;
+  background: #e6fcf5;
 }
 .stat-card__icon--deadline {
   background: #fff4e6;
-}
-.stat-card__icon--follow {
-  background: #f3f0ff;
 }
 
 .stat-card__num {
@@ -780,68 +668,4 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
   display: block;
 }
 
-/* ---------- 待对接 ---------- */
-.follow-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.follow-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 6px;
-  border-radius: 6px;
-}
-
-.follow-item:hover {
-  background: #f8f9fa;
-}
-
-.follow-item__avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.follow-item__main {
-  flex: 1;
-  min-width: 0;
-}
-
-.follow-item__title {
-  font-size: 13px;
-  color: var(--wa-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.follow-item__meta {
-  font-size: 11px;
-  color: var(--wa-text-muted);
-  margin-top: 2px;
-}
-
-.follow-item__deadline {
-  font-size: 11px;
-  color: var(--wa-brand-text);
-  background: var(--wa-brand-soft);
-  padding: 2px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.follow-item__deadline.is-overdue {
-  color: var(--wa-danger);
-  background: #fff0f0;
-}
 </style>

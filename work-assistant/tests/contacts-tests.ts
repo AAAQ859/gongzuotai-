@@ -66,6 +66,8 @@ function mkEvent(partial: Partial<WorkEvent>): WorkEvent {
     attendees: [],
     status: 'todo',
     category: '',
+    task_type: 'temporary',
+    series_id: null,
     tags: [],
     contact_id: null,
     reminder_enabled: 1,

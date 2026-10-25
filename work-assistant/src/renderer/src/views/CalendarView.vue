@@ -344,7 +344,9 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
               <span class="cal-day__state" :class="`is-${eventState(ev).key.replace('_', '-')}`">
                 {{ eventState(ev).label }}
               </span>
-              <span class="cal-day__kind">{{ ev.kind === 'meeting' ? '会议' : '事项' }}</span>
+              <span class="cal-day__kind">
+                {{ ev.kind === 'meeting' ? '会议' : ev.task_type === 'routine' ? '🔁 例行' : '事项' }}
+              </span>
             </span>
           </button>
         </div>

@@ -20,6 +20,7 @@
     "src/main/db/**/*",
     "src/main/files/extract.ts",
     "src/main/reminders/**/*",
+    "src/main/series/**/*",
     "src/shared/**/*",
     "src/renderer/src/utils/**/*",
     "tests/**/*"

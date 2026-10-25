@@ -5,6 +5,8 @@
 // ---------- 基础枚举 ----------
 
 export type EventKind = 'task' | 'meeting'
+/** 事项类型:临时事项(一次性/时间不固定) / 例行事项(每周固定星期与时间) */
+export type TaskType = 'temporary' | 'routine'
 export type EventStatus = 'todo' | 'in_progress' | 'done' | 'cancelled'
 export type CalendarKind = 'schedule' | 'meeting'
 export type ReminderType = 'event' | 'deadline' | 'followup' | 'daily'
@@ -42,6 +44,10 @@ export interface WorkEvent {
   status: EventStatus
   /** 自定义分类标签(如:例行周报/对接事项/报告提交) */
   category: string
+  /** 事项类型;会议固定为 temporary,不参与循环 */
+  task_type: TaskType
+  /** 例行事项所属系列 id;一次性事项为 null。每一期仍是一条独立事项,可单独完成 */
+  series_id: number | null
   tags: string[]
   /** 关联对接人 */
   contact_id: number | null
@@ -54,6 +60,33 @@ export interface WorkEvent {
   related_files: string[]
   sort_order: number
   completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * 例行事项系列:保存每周重复的模板。
+ * 每周期次在 events 表中落地为独立行(series_id 指向本表),可单独完成、编辑或删除。
+ */
+export interface EventSeries {
+  id: number
+  calendar_id: number | null
+  title: string
+  description: string
+  /** 首次发生时间('YYYY-MM-DD HH:MM'),同时是每周重复的锚点 */
+  start_time: string
+  end_time: string
+  location: string
+  attendees: AttendeeRef[]
+  category: string
+  tags: string[]
+  contact_id: number | null
+  reminder_enabled: number
+  reminder_minutes: number | null
+  reminder_days: number | null
+  /** 已生成到的最后一个周期日期('YYYY-MM-DD') */
+  generated_until: string | null
+  active: number
   created_at: string
   updated_at: string
 }

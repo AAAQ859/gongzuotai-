@@ -218,5 +218,45 @@ CREATE TABLE summary_drafts (
 );
 CREATE INDEX idx_summary_drafts_updated ON summary_drafts(updated_at);
 `
+  },
+  {
+    version: 7,
+    name: 'routine-task-series',
+    // 例行事项(每周固定星期/时间):系列表保存模板,每周期次在 events 中落地为独立行,
+    // 可单独完成、编辑、删除;例外日期表防止「仅删除/仅修改本次」被后续续期重新生成。
+    // 历史事项默认 task_type='temporary',行为不变。
+    up: `
+CREATE TABLE event_series (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  calendar_id INTEGER REFERENCES calendars(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  location TEXT NOT NULL DEFAULT '',
+  attendees TEXT NOT NULL DEFAULT '[]',
+  category TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT '[]',
+  contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL,
+  reminder_enabled INTEGER NOT NULL DEFAULT 1,
+  reminder_minutes INTEGER,
+  reminder_days INTEGER,
+  generated_until TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE event_series_exceptions (
+  series_id INTEGER NOT NULL REFERENCES event_series(id) ON DELETE CASCADE,
+  occurrence_date TEXT NOT NULL,
+  PRIMARY KEY (series_id, occurrence_date)
+);
+
+ALTER TABLE events ADD COLUMN task_type TEXT NOT NULL DEFAULT 'temporary';
+ALTER TABLE events ADD COLUMN series_id INTEGER REFERENCES event_series(id) ON DELETE SET NULL;
+CREATE INDEX idx_events_series ON events(series_id);
+CREATE INDEX idx_event_series_active ON event_series(active);
+`
   }
 ]

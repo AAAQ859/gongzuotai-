@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'fs'
 import { initDatabase } from './db/database'
 import { registerIpc } from './ipc'
 import * as reminderEngine from './reminders/engine'
+import * as seriesService from './series/service'
 import { startMonthlyReminder } from './summary/monthly'
 import {
   applyAutoLaunchFromSettings,
@@ -157,6 +158,9 @@ app.whenReady().then(() => {
   )
   // 开机自启:按保存的设置校正系统注册项
   applyAutoLaunchFromSettings()
+
+  // 例行事项续期:把每个每周重复系列补到未来 12 个月(须在提醒回填之前)
+  seriesService.extendAll()
 
   // 提醒引擎:回填事件提醒行并开始定时检查(板块 06)
   reminderEngine.startEngine(() => BrowserWindow.getAllWindows()[0] ?? null)

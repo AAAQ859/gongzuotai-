@@ -9,6 +9,8 @@ import type { Calendar, Contact, WorkEvent } from '@shared/types'
 import { db } from '@/api/db'
 import { categoryColor, deadlineLabel } from '@/utils/dashboard'
 import { eventState } from '@/utils/calendar'
+import { formatWeeklyRule } from '@shared/recurrence'
+import SeriesDeleteDialog from '@/components/SeriesDeleteDialog.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -24,6 +26,13 @@ const emit = defineEmits<{
 }>()
 
 const busy = ref(false)
+const deleteScopeVisible = ref(false)
+
+const weeklyRule = computed(() =>
+  props.event?.task_type === 'routine' && props.event.start_time
+    ? formatWeeklyRule(props.event.start_time)
+    : ''
+)
 
 const calendar = computed(() =>
   props.event?.calendar_id != null
@@ -79,18 +88,35 @@ async function toggleStatus(): Promise<void> {
 
 async function remove(): Promise<void> {
   if (!props.event) return
+  if (props.event.series_id != null) {
+    deleteScopeVisible.value = true
+    return
+  }
   try {
     await ElMessageBox.confirm(`确定删除「${props.event.title}」吗?删除后不可恢复。`, '删除确认', {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消'
     })
-    await db.events.remove(props.event.id)
+    await db.events.remove(props.event.id, 'one')
     ElMessage.success('已删除')
     emit('update:modelValue', false)
     emit('changed')
   } catch (err) {
     if (err === 'cancel' || err === 'close') return
+    ElMessage.error(err instanceof Error ? err.message : '删除失败')
+  }
+}
+
+async function onDeleteScope(scope: 'one' | 'series'): Promise<void> {
+  if (!props.event) return
+  deleteScopeVisible.value = false
+  try {
+    await db.events.remove(props.event.id, scope)
+    ElMessage.success(scope === 'series' ? '已删除整个系列' : '已删除本次')
+    emit('update:modelValue', false)
+    emit('changed')
+  } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '删除失败')
   }
 }
@@ -111,7 +137,10 @@ async function remove(): Promise<void> {
           :style="{ background: calendar?.color ?? '#CED4DA' }"
         ></span>
         <span class="detail__title">{{ event.title }}</span>
+        <span v-if="event.task_type === 'routine'" class="detail__routine">🔁 例行</span>
       </div>
+
+      <div v-if="weeklyRule" class="detail__rule">每周重复 · {{ weeklyRule }}</div>
 
       <div class="detail__rows">
         <div class="detail__row">
@@ -138,7 +167,7 @@ async function remove(): Promise<void> {
           <span class="detail__value">{{ event.location }}</span>
         </div>
         <div v-if="event.attendees.length" class="detail__row">
-          <span class="detail__label">参会人</span>
+          <span class="detail__label">参会人/组织</span>
           <span class="detail__value">{{ event.attendees.map((a) => a.name).join('、') }}</span>
         </div>
         <div v-if="contact" class="detail__row">
@@ -177,6 +206,8 @@ async function remove(): Promise<void> {
       <el-button type="primary" @click="emit('edit')">编辑</el-button>
     </template>
   </el-dialog>
+
+  <SeriesDeleteDialog v-model="deleteScopeVisible" :event="event" @choose="onDeleteScope" />
 </template>
 
 <style scoped>
@@ -201,6 +232,22 @@ async function remove(): Promise<void> {
   word-break: break-all;
 }
 
+.detail__routine {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wa-brand-text);
+  background: var(--wa-brand-soft);
+  border-radius: 999px;
+}
+
+.detail__rule {
+  margin: -4px 0 12px 18px;
+  font-size: 12px;
+  color: var(--wa-brand-text);
+}
+
 .detail__rows {
   display: flex;
   flex-direction: column;
@@ -214,7 +261,7 @@ async function remove(): Promise<void> {
 }
 
 .detail__label {
-  width: 56px;
+  width: 78px;
   flex-shrink: 0;
   font-size: 13px;
   color: var(--wa-text-muted);

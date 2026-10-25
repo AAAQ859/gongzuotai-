@@ -23,6 +23,8 @@
     "test:files": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs files-tests.js",
     "test:summary": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs summary-tests.js",
     "test:stats": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs work-stats-tests.js",
+    "test:recurrence": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs recurrence-tests.js",
+    "test:series": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs series-tests.js",
     "test:enhance": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs enhance-tests.js",
     "demo:seed": "tsc -p tsconfig.tests.json && node scripts/run-tests.mjs seed-demo.js",
     "start": "node scripts/run.mjs electron-vite preview",

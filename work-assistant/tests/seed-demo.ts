@@ -15,6 +15,7 @@ import * as calendars from '../src/main/db/repositories/calendars'
 import * as contacts from '../src/main/db/repositories/contacts'
 import * as events from '../src/main/db/repositories/events'
 import * as reminders from '../src/main/db/repositories/reminders'
+import * as seriesService from '../src/main/series/service'
 import { scanFolder } from '../src/main/files/extract'
 import { fmtCn } from '../src/shared/reminder-text'
 import {
@@ -217,9 +218,30 @@ mk({
   kind: 'meeting',
   title: '集团公司会议',
   category: '例会',
+  description: '汇报客运部本月安全服务与换季保障工作',
   start_time: `${addDays(today, 1)} 10:00`,
   end_time: `${addDays(today, 1)} 11:00`,
-  location: '集团公司大楼',
+  location: '集团公司大楼 3 楼会议室',
+  attendees: [
+    { contact_id: wang.id, name: '王主任' },
+    { contact_id: zhang.id, name: '张经理' }
+  ],
+  reminder_enabled: 1,
+  reminder_minutes: 30
+})
+mk({
+  calendar_id: byName('客运部会议日程'),
+  kind: 'meeting',
+  title: '换季航班保障协调会',
+  category: '协调会',
+  description: '确认换季首日航班保障、异常航班处置与信息通报流程',
+  start_time: `${addDays(today, 1)} 15:00`,
+  end_time: `${addDays(today, 1)} 16:00`,
+  location: '天府B216会议室',
+  attendees: [
+    { contact_id: li.id, name: '李工' },
+    { contact_id: piao.id, name: '朴经理' }
+  ],
   reminder_enabled: 1,
   reminder_minutes: 30
 })
@@ -310,10 +332,14 @@ mk({
   kind: 'meeting',
   title: 'TV香港航空对接会',
   category: '会议',
-  description: '与香港航空协调冬季航班时刻',
+  description: '与香港航空协调冬季航班时刻与地面保障接口',
   start_time: `${addDays(today, 1)} 10:00`,
   end_time: `${addDays(today, 1)} 11:30`,
-  location: '线上会议'
+  location: '线上会议',
+  attendees: [
+    { contact_id: zhang.id, name: '张经理' },
+    { contact_id: null, name: '香港航空 陈经理' }
+  ]
 })
 mk({
   calendar_id: byName('报告提交'),
@@ -343,6 +369,54 @@ const doneEv = events.create({
   end_time: `${weekStart} 18:00`
 })
 markDoneOn(doneEv.id, weekStart, '17:30')
+
+// 明日临时事项(用于「明日待办」中会议/事项分列演示)
+mk({
+  calendar_id: byName('例行工作'),
+  kind: 'task',
+  title: '整理换季检查单',
+  category: '例行',
+  description: '补齐换季检查单签字页,交综合部归档',
+  start_time: `${addDays(today, 1)} 09:00`,
+  end_time: `${addDays(today, 1)} 11:00`,
+  contact_id: wang.id
+})
+
+// 例行事项演示:每周固定星期/时间,自动排入未来 12 个月日历
+/** 今天起第一个目标星期(0=周日 … 5=周五),当天即为该星期时返回今天 */
+function nextWeekday(target: number): string {
+  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return addDays(today, (target - base.getDay() + 7) % 7)
+}
+const weeklyReportDate = nextWeekday(5)
+seriesService.createSeries(
+  {
+    calendar_id: byName('例行工作'),
+    title: '提交周报',
+    category: '例行',
+    description: '汇总本周工作进展与下周计划,发送部门群',
+    start_time: `${weeklyReportDate} 15:30`,
+    end_time: `${weeklyReportDate} 16:30`,
+    location: '办公室',
+    contact_id: wang.id,
+    reminder_enabled: 1,
+    reminder_minutes: 30
+  },
+  now
+)
+const weeklyPlanDate = addDays(today, 1)
+seriesService.createSeries(
+  {
+    calendar_id: byName('例行工作'),
+    title: '周计划梳理',
+    category: '例行',
+    description: '整理本周重点任务与待办优先级',
+    start_time: `${weeklyPlanDate} 08:30`,
+    end_time: `${weeklyPlanDate} 09:00`,
+    location: '工位'
+  },
+  now
+)
 
 // 工作纲要演示(板块 09):本月/本周的已完成例行、对接、报告与会议
 const extraDoneDefs: Array<{
@@ -773,8 +847,16 @@ const summaryContent = buildSummaryContent(
 )
 const demoSummaryStats = summaryStats(events.list(), summaryRange, summaryNow)
 
+const routineSeriesCount = (
+  getDb().prepare('SELECT COUNT(*) AS c FROM event_series WHERE active = 1').get() as { c: number }
+).c
+
 const demo = {
   todayMeetings: summary.todayMeetings.length,
+  tomorrowMeetings: summary.tomorrowMeetings.length,
+  todayTasks: summary.todayTasks.length,
+  tomorrowTasks: summary.tomorrowTasks.length,
+  routineSeries: routineSeriesCount,
   nextAt: summary.nextMeeting ? summary.nextMeeting.start_time!.slice(11) : null,
   weekTasks: summary.weekTasks.length,
   weekDone: summary.weekDone,

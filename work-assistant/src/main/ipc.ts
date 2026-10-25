@@ -15,12 +15,15 @@ import type {
 import { dbFilePath, schemaVersion } from './db/database'
 import * as calendarsRepo from './db/repositories/calendars'
 import * as eventsRepo from './db/repositories/events'
+import type { EventInput } from './db/repositories/events'
+import type { SeriesInput } from './db/repositories/series'
 import * as contactsRepo from './db/repositories/contacts'
 import * as boardsRepo from './db/repositories/boards'
 import * as summariesRepo from './db/repositories/summaries'
 import * as remindersRepo from './db/repositories/reminders'
 import * as settingsRepo from './db/repositories/settings'
 import * as reminderEngine from './reminders/engine'
+import * as seriesService from './series/service'
 import * as filesService from './files/service'
 import { exportSummary } from './summary/export'
 import { backupDirPath, createBackup, restoreBackup } from './backup/service'
@@ -32,6 +35,17 @@ import {
 } from './tray'
 
 type Handler = (payload: unknown) => unknown
+
+/** 例行事项一次生成多期,逐期同步提醒;单期失败不影响整体 */
+function syncReminders(ids: number[]): void {
+  for (const id of ids) {
+    try {
+      reminderEngine.syncEventReminders(id)
+    } catch {
+      // 忽略单期提醒同步失败(事项本身已创建成功)
+    }
+  }
+}
 
 /** 数据库操作路由表:action 名与 shared/types.ts 的 DB_ACTIONS 保持一致 */
 const handlers: Record<string, Handler> = {
@@ -45,6 +59,8 @@ const handlers: Record<string, Handler> = {
       'file_boards',
       'file_items',
       'summary_drafts',
+      'event_series',
+      'event_series_exceptions',
       'reminders',
       'settings'
     ]
@@ -76,12 +92,44 @@ const handlers: Record<string, Handler> = {
   'events.list': (p) => eventsRepo.list((p ?? {}) as Parameters<typeof eventsRepo.list>[0]),
   'events.get': (p) => eventsRepo.get((p as { id: number }).id),
   'events.create': (p) => {
-    const row = eventsRepo.create(p as Parameters<typeof eventsRepo.create>[0])
+    const input = p as EventInput
+    // 例行事项:创建系列并展开未来 12 个月的独立期次,返回首期
+    if (input.task_type === 'routine') {
+      const result = seriesService.createSeries(input)
+      syncReminders(result.createdIds)
+      return result.first
+    }
+    const row = eventsRepo.create(input)
     reminderEngine.syncEventReminders(row.id)
     return row
   },
   'events.update': (p) => {
-    const { id, ...patch } = p as { id: number }
+    const { id, scope, ...patch } = p as { id: number; scope?: 'one' | 'series' } & Partial<EventInput>
+    const current = eventsRepo.get(id)
+    if (scope === 'series' && current.series_id != null) {
+      const seriesPatch: Partial<SeriesInput> = {
+        calendar_id: patch.calendar_id,
+        title: patch.title,
+        description: patch.description,
+        start_time: patch.start_time ?? undefined,
+        end_time: patch.end_time ?? undefined,
+        location: patch.location,
+        attendees: patch.attendees,
+        category: patch.category,
+        tags: patch.tags,
+        contact_id: patch.contact_id,
+        reminder_enabled: patch.reminder_enabled,
+        reminder_minutes: patch.reminder_minutes,
+        reminder_days: patch.reminder_days
+      }
+      const result = seriesService.updateSeries(current.series_id, seriesPatch)
+      syncReminders(result.createdIds)
+      // 原期次可能已被重新生成;优先返回本期仍在的记录,其次返回剩余首期
+      const remaining = eventsRepo.listBySeries(current.series_id)
+      return remaining.find((e) => e.id === id) ?? result.first ?? remaining[0] ?? null
+    }
+    // 仅修改本次:把原发生日期登记为例外,后续系列续期不覆盖
+    seriesService.markOccurrenceEdited(current)
     const row = eventsRepo.update(id, patch)
     reminderEngine.syncEventReminders(id)
     return row
@@ -92,7 +140,16 @@ const handlers: Record<string, Handler> = {
     reminderEngine.syncEventReminders(id)
     return row
   },
-  'events.remove': (p) => eventsRepo.remove((p as { id: number }).id),
+  'events.remove': (p) => {
+    const { id, scope } = p as { id: number; scope?: 'one' | 'series' }
+    const ev = eventsRepo.get(id)
+    if (scope === 'series' && ev.series_id != null) {
+      seriesService.deleteSeries(ev.series_id)
+    } else {
+      seriesService.removeOccurrence(id, 'one')
+    }
+    return null
+  },
 
   // ---------- 联系人 ----------
   'contacts.list': (p) => contactsRepo.list((p as { search?: string })?.search),

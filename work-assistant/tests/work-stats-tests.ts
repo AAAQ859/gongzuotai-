@@ -43,6 +43,8 @@ function event(over: Partial<WorkEvent> = {}): WorkEvent {
     attendees: [],
     status: 'done',
     category: '',
+    task_type: 'temporary',
+    series_id: null,
     tags: [],
     contact_id: null,
     reminder_enabled: 0,
