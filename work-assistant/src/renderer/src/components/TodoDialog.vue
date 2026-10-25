@@ -58,7 +58,7 @@ const isTextMode = computed(() => meetingDisplayMode.value === 'text')
 
 function fieldLabel(field: 'time' | 'location' | 'attendees' | 'note'): string {
   if (isTextMode.value) {
-    return { time: '时间', location: '地点', attendees: '参会人', note: '备注' }[field]
+    return { time: '时间：', location: '地点：', attendees: '参会人：', note: '备注：' }[field]
   }
   return { time: '🕘', location: '📍', attendees: '👥', note: '📝' }[field]
 }
@@ -182,22 +182,30 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 
               <div class="meeting-card__meta">
                 <span class="meeting-card__meta-item">
-                  <span class="meeting-card__meta-label">{{ fieldLabel('time') }}</span>
-                  {{ timeRange(ev) }}
+                  <span
+                    class="meeting-card__meta-label"
+                    :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
+                  >{{ fieldLabel('time') }}</span>{{ timeRange(ev) }}
                 </span>
                 <span v-if="ev.location" class="meeting-card__meta-item">
-                  <span class="meeting-card__meta-label">{{ fieldLabel('location') }}</span>
-                  {{ ev.location }}
+                  <span
+                    class="meeting-card__meta-label"
+                    :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
+                  >{{ fieldLabel('location') }}</span>{{ ev.location }}
                 </span>
                 <span v-if="ev.attendees.length" class="meeting-card__meta-item">
-                  <span class="meeting-card__meta-label">{{ fieldLabel('attendees') }}</span>
-                  {{ ev.attendees.map((a) => a.name).join('、') }}
+                  <span
+                    class="meeting-card__meta-label"
+                    :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
+                  >{{ fieldLabel('attendees') }}</span>{{ ev.attendees.map((a) => a.name).join('、') }}
                 </span>
               </div>
 
               <div v-if="ev.description" class="meeting-card__note">
-                <span class="meeting-card__meta-label">{{ fieldLabel('note') }}</span>
-                {{ ev.description }}
+                <span
+                  class="meeting-card__meta-label"
+                  :class="{ 'meeting-card__meta-label--icon': !isTextMode }"
+                >{{ fieldLabel('note') }}</span>{{ ev.description }}
               </div>
             </div>
           </article>
@@ -317,9 +325,12 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 }
 
 .meeting-card__meta-label {
-  margin-right: 4px;
   color: var(--wa-text-muted);
   font-weight: 500;
+}
+
+.meeting-card__meta-label--icon {
+  margin-right: 4px;
 }
 
 .todo__summary {
@@ -505,7 +516,7 @@ async function toggleDone(ev: WorkEvent): Promise<void> {
 .meeting-card__meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0;
 }
 
 .meeting-card__note {

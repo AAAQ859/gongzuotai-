@@ -146,11 +146,11 @@ function timeText(ev: WorkEvent): string {
 
 function subText(ev: WorkEvent): string {
   const parts: string[] = []
-  if (ev.location) parts.push(ev.location)
-  if (ev.attendees.length) parts.push(`参会:${ev.attendees.map((a) => a.name).join('、')}`)
+  if (ev.location) parts.push(`地点：${ev.location}`)
+  if (ev.attendees.length) parts.push(`参会人：${ev.attendees.map((a) => a.name).join('、')}`)
   else if (ev.kind === 'task' && ev.contact_id != null) {
     const c = contacts.value.find((x) => x.id === ev.contact_id)
-    if (c) parts.push(`对接人:${c.name}`)
+    if (c) parts.push(`对接人：${c.name}`)
   }
   return parts.join(' · ')
 }

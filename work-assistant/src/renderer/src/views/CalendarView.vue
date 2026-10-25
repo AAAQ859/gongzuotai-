@@ -333,10 +333,10 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
               </span>
               <span class="cal-day__sub">
                 <span v-if="ev.category" class="cal-day__chip" :style="{ color: categoryColor(ev.category), background: categoryColor(ev.category) + '1A' }">{{ ev.category }}</span>
-                <template v-if="ev.location">{{ ev.location }}</template>
-                <template v-if="ev.attendees.length">参会:{{ ev.attendees.map((a) => a.name).join('、') }}</template>
+                <template v-if="ev.location">地点：{{ ev.location }}</template>
+                <template v-if="ev.attendees.length">参会人：{{ ev.attendees.map((a) => a.name).join('、') }}</template>
                 <template v-if="ev.kind === 'task' && ev.contact_id != null">
-                  对接人:{{ contacts.find((c) => c.id === ev.contact_id)?.name }}
+                  对接人：{{ contacts.find((c) => c.id === ev.contact_id)?.name }}
                 </template>
               </span>
             </span>
@@ -545,7 +545,7 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
 /* ---------- 月视图 ---------- */
 .cal-month__head {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-bottom: 1px solid var(--wa-border);
   padding-bottom: 6px;
 }
@@ -558,13 +558,15 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
 
 .cal-month__grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-left: 1px solid var(--wa-border);
   border-top: 1px solid var(--wa-border);
 }
 
 .cal-month__cell {
+  min-width: 0;
   min-height: 96px;
+  overflow: hidden;
   border-right: 1px solid var(--wa-border);
   border-bottom: 1px solid var(--wa-border);
   padding: 6px;
@@ -610,6 +612,7 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
 }
 
 .cal-month__blocks {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -668,12 +671,14 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
 /* ---------- 周视图 ---------- */
 .cal-week {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-left: 1px solid var(--wa-border);
   border-top: 1px solid var(--wa-border);
 }
 
 .cal-week__col {
+  min-width: 0;
+  overflow: hidden;
   border-right: 1px solid var(--wa-border);
   border-bottom: 1px solid var(--wa-border);
   min-height: 420px;
@@ -717,6 +722,7 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
 }
 
 .cal-week__body {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -724,6 +730,8 @@ function dayHeader(d: Date): { week: string; date: string; isToday: boolean } {
 }
 
 .cal-week__item {
+  max-width: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: flex-start;

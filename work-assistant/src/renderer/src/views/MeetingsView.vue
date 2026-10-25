@@ -327,9 +327,9 @@ function openDay(dateStr: string): void {
           <div class="mtg-block__title">{{ b.ev.title }}</div>
           <div class="mtg-block__sub">
             <template v-if="isTextMode">
-              <span>时间 {{ fmtTimeRange(b.ev) }}</span>
-              <span v-if="b.ev.location"> · 地点 {{ b.ev.location }}</span>
-              <span v-if="b.ev.attendees.length"> · 参会人 {{ b.ev.attendees.length }} 人</span>
+              <span>时间：{{ fmtTimeRange(b.ev) }}</span>
+              <span v-if="b.ev.location"> · 地点：{{ b.ev.location }}</span>
+              <span v-if="b.ev.attendees.length"> · 参会人：{{ b.ev.attendees.length }} 人</span>
             </template>
             <template v-else>
               {{ fmtTimeRange(b.ev) }}
@@ -369,7 +369,7 @@ function openDay(dateStr: string): void {
               <span class="mtg-week__time">{{ fmtTimeRange(ev) }}</span>
               <span class="mtg-week__title">{{ ev.title }}</span>
               <span v-if="ev.location" class="mtg-week__loc">
-                {{ isTextMode ? '地点 ' : locationIcon(ev.location) + ' ' }}{{ ev.location }}
+                {{ isTextMode ? '地点：' : locationIcon(ev.location) + ' ' }}{{ ev.location }}
               </span>
             </button>
           </div>
@@ -460,7 +460,7 @@ function openDay(dateStr: string): void {
           <span class="mtg-panel__item-main">
             <span class="mtg-panel__item-time">
               <template v-if="isTextMode">
-                时间 {{ fmtTimeRange(ev) }} · {{ meetingStatusText(ev) }}
+                时间：{{ fmtTimeRange(ev) }} · {{ meetingStatusText(ev) }}
               </template>
               <template v-else>
                 {{ fmtTimeRange(ev) }}
@@ -470,14 +470,14 @@ function openDay(dateStr: string): void {
             <span class="mtg-panel__item-title">{{ ev.title }}</span>
             <span class="mtg-panel__item-sub">
               <template v-if="isTextMode">
-                <template v-if="ev.location">地点 {{ ev.location }}</template>
+                <template v-if="ev.location">地点：{{ ev.location }}</template>
                 <template v-if="ev.location && ev.attendees.length"> · </template>
-                <template v-if="ev.attendees.length">参会人 {{ attendeeNames(ev) }}</template>
+                <template v-if="ev.attendees.length">参会人：{{ attendeeNames(ev) }}</template>
               </template>
               <template v-else>
                 <template v-if="ev.location">{{ locationIcon(ev.location) }} {{ ev.location }}</template>
                 <template v-if="ev.attendees.length">
-                  参会:{{ attendeeNames(ev) }}
+                  参会人：{{ attendeeNames(ev) }}
                 </template>
               </template>
             </span>
@@ -513,9 +513,10 @@ function openDay(dateStr: string): void {
             <span class="mtg-panel__item-title">{{ ev.title }}</span>
             <span class="mtg-panel__item-sub">
               <template v-if="ev.location">
-                {{ isTextMode ? '地点 ' : locationIcon(ev.location) + ' ' }}{{ ev.location }}
+                {{ isTextMode ? '地点：' : locationIcon(ev.location) + ' ' }}{{ ev.location }}
               </template>
-              <template v-if="ev.description">{{ ev.description }}</template>
+              <template v-if="ev.location && ev.description"> · </template>
+              <template v-if="ev.description">备注：{{ ev.description }}</template>
             </span>
           </span>
         </button>
